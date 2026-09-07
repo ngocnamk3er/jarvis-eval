@@ -1,8 +1,8 @@
 # jarvis-eval — current scores
 
-_Generated from `datasets/baseline.json` · agent model `deepseek/deepseek-v4-flash` · 2026-09-07T16:21:03Z_
+_Generated from `datasets/baseline.json` · agent model `deepseek/deepseek-v4-flash` · 2026-09-07T17:33:57Z_
 
-> embeddings: openai/text-embedding-3-large @1024 dims (was baai/bge-m3). beir_* full test sets; hotpotqa retrieval on 300 sampled Qs. 2026-09-07.
+> embeddings: openai/text-embedding-3-large @1024 dims (was baai/bge-m3, 2026-09-07). beir_* full test sets; hotpotqa retrieval 300 sampled Qs + answers 47/50.
 
 ## beir_scifact
 
@@ -38,13 +38,12 @@ _reference: distractor-setting retrieval; strong RAG answer_f1 ≈ 0.6-0.8_
 | support_recall@5 | 0.887 |
 | both@2 | 0.513 |
 | both@5 | 0.777 |
-| answer_em | 0.580 |
-| answer_f1 | 0.710 |
-| answer_n | 45 |
-| retrieval_n_cases | 300 |
-| latency_p95_s | 282 |
-| usd_agent_total | 0.300 |
-| _cases_ | 300 (5 errored) |
-
-_answers from a bge-m3-era 45/50 agent run; retrieval since re-measured with text-embedding-3-large_
+| answer_em | 0.620 |
+| answer_f1 | 0.753 |
+| support_read | 0.960 |
+| latency_s | 56.832 |
+| usd | 0.004 |
+| latency_p95 | 184.540 |
+| usd_total | 0.213 |
+| _cases_ | 300 (3 errored) |
 

@@ -1,9 +1,9 @@
 {
   "meta": {
-    "timestamp": "2026-09-07T16:21:03Z",
+    "timestamp": "2026-09-07T17:33:57Z",
     "runner_model": "deepseek/deepseek-v4-flash",
-    "git_sha": "3ad93d4",
-    "note": "embeddings: openai/text-embedding-3-large @1024 dims (was baai/bge-m3). beir_* full test sets; hotpotqa retrieval on 300 sampled Qs. 2026-09-07."
+    "git_sha": "c5a53b3",
+    "note": "embeddings: openai/text-embedding-3-large @1024 dims (was baai/bge-m3, 2026-09-07). beir_* full test sets; hotpotqa retrieval 300 sampled Qs + answers 47/50."
   },
   "suites": {
     "beir_scifact": {
@@ -23,18 +23,19 @@
       "n_errors": 0
     },
     "hotpotqa": {
-      "support_recall@2": 0.733,
-      "support_recall@5": 0.887,
-      "both@2": 0.513,
-      "both@5": 0.777,
-      "answer_em": 0.58,
-      "answer_f1": 0.71,
-      "answer_n": 45,
-      "retrieval_n_cases": 300,
-      "n_errors": 5,
-      "latency_p95_s": 282,
-      "usd_agent_total": 0.3,
-      "answer_note": "answers from a bge-m3-era 45/50 agent run; retrieval since re-measured with text-embedding-3-large"
+      "support_recall@2": 0.7333,
+      "support_recall@5": 0.8867,
+      "both@2": 0.5133,
+      "both@5": 0.7767,
+      "answer_em": 0.62,
+      "answer_f1": 0.7527,
+      "support_read": 0.96,
+      "latency_s": 56.8324,
+      "usd": 0.0043,
+      "latency_p95": 184.54,
+      "usd_total": 0.213,
+      "n_cases": 300,
+      "n_errors": 3
     }
   }
 }
