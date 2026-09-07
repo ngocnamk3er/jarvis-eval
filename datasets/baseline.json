@@ -4,7 +4,7 @@
     "runner_model": "deepseek/deepseek-v4-flash",
     "judge_model": "deepseek/deepseek-v4-pro",
     "git_sha": "?",
-    "note": "hand-rolled suites: deepseek-v4-flash runner. beir_*: file-service bge-m3 retrieval, 2026-09-07."
+    "note": "hand-rolled: deepseek-v4-flash. beir_*: file-service bge-m3 dense. hotpotqa: retrieval on 300 sampled Qs, answers on 45/50 (5 agent timeouts)."
   },
   "suites": {
     "retrieval": {
@@ -60,6 +60,19 @@
       "mrr@10": 0.5237,
       "n_cases": 323,
       "n_errors": 0
+    },
+    "hotpotqa": {
+      "support_recall@2": 0.723,
+      "support_recall@5": 0.855,
+      "both@2": 0.493,
+      "both@5": 0.72,
+      "answer_em": 0.58,
+      "answer_f1": 0.71,
+      "answer_n": 45,
+      "retrieval_n_cases": 300,
+      "n_errors": 5,
+      "latency_p95_s": 282,
+      "usd_agent_total": 0.3
     }
   }
 }

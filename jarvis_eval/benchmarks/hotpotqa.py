@@ -34,8 +34,12 @@ def user() -> str:
     return f"{settings.EVAL_USERNAME}-hotpotqa"
 
 
+def _fid(title: str) -> str:
+    return hashlib.md5(title.encode()).hexdigest()[:12]
+
+
 def _fname(title: str) -> str:
-    return hashlib.md5(title.encode()).hexdigest()[:12] + ".txt"
+    return _fid(title) + ".txt"
 
 
 def _sample() -> list[dict]:
@@ -65,7 +69,8 @@ def seed(_suite: str = "hotpotqa") -> dict:
         for t, s in zip(titles, sents):
             paragraphs.setdefault(t, _para_text(t, list(s)))
 
-    titlemap = {_fname(t): t for t in paragraphs}
+    # keyed by the bare md5 (== PurePosixPath(path).stem at score time)
+    titlemap = {_fid(t): t for t in paragraphs}
     TITLEMAP.write_text(json.dumps(titlemap))
 
     files.wipe(user=u)
