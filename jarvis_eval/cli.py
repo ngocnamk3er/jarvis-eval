@@ -19,15 +19,29 @@ from jarvis_eval.dataset import SUITES, load, smoke
 console = Console()
 
 
-def _cmd_setup(_args) -> int:
-    from jarvis_eval.clients.auth import ensure_eval_user
-    sub = ensure_eval_user()
-    console.print(f"[green]eval user ready[/] — sub [bold]{sub}[/]")
+def _cmd_setup(args) -> int:
+    from jarvis_eval.benchmarks import BENCHMARKS
+    from jarvis_eval.clients.auth import ensure_user
+    console.print(f"[green]{settings.EVAL_USERNAME}[/] — sub [bold]{ensure_user()}[/]")
+    if getattr(args, "all_benchmark_users", False):
+        for b in BENCHMARKS:
+            u = f"{settings.EVAL_USERNAME}-{b.replace('_', '-')}"
+            console.print(f"[green]{u}[/] — sub [bold]{ensure_user(u)}[/]")
     return 0
 
 
-def _cmd_seed(_args) -> int:
+def _cmd_seed(args) -> int:
+    from jarvis_eval.benchmarks import BENCHMARKS
     from jarvis_eval.clients import files
+
+    if args.benchmark:
+        from jarvis_eval.clients.auth import ensure_user
+        u = f"{settings.EVAL_USERNAME}-{args.benchmark.replace('_', '-')}"
+        ensure_user(u)
+        console.rule(f"seed {args.benchmark}  (user {u})")
+        console.print(BENCHMARKS[args.benchmark][0]())
+        return 0
+
     removed = files.wipe()
     console.print(f"wiped {removed} top-level node(s)")
     stats = files.seed_corpus()
@@ -41,9 +55,13 @@ def _cmd_seed(_args) -> int:
 
 
 def _cmd_run(args) -> int:
+    from jarvis_eval.benchmarks import BENCHMARKS
     from jarvis_eval.runners import RUNNERS
 
-    which = SUITES if args.suite in ("all", "smoke") else [args.suite]
+    if args.suite in ("all", "smoke"):
+        which = list(SUITES)
+    else:
+        which = [args.suite]
     pick = smoke if args.suite == "smoke" else load
     repeats = args.repeats or settings.REPEATS
     if args.model:
@@ -51,9 +69,15 @@ def _cmd_run(args) -> int:
 
     all_rows: list[dict] = []
     for suite in which:
-        cases = pick(suite)
-        console.rule(f"{suite} · {len(cases)} case(s) × {repeats}")
-        rows = RUNNERS[suite](cases, repeats=repeats)
+        if suite in BENCHMARKS:
+            from jarvis_eval.clients.auth import ensure_user
+            ensure_user(f"{settings.EVAL_USERNAME}-{suite.replace('_', '-')}")
+            console.rule(f"{suite} (benchmark)")
+            rows = BENCHMARKS[suite][1](None, repeats=1)
+        else:
+            cases = pick(suite)
+            console.rule(f"{suite} · {len(cases)} case(s) × {repeats}")
+            rows = RUNNERS[suite](cases, repeats=repeats)
         for r in rows:
             err = r["meta"].get("error")
             tag = "[red]ERR[/]" if err else "[green]ok[/]"
@@ -111,11 +135,21 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("setup").set_defaults(fn=_cmd_setup)
-    sub.add_parser("seed").set_defaults(fn=_cmd_seed)
+    from jarvis_eval.benchmarks import BENCHMARKS
+    bench = list(BENCHMARKS)
+
+    st = sub.add_parser("setup")
+    st.add_argument("--all-benchmark-users", action="store_true",
+                    help="also create eval-<benchmark> users")
+    st.set_defaults(fn=_cmd_setup)
+
+    s = sub.add_parser("seed")
+    s.add_argument("--benchmark", choices=bench, default=None,
+                   help="seed a standard benchmark's corpus instead of the hand corpus")
+    s.set_defaults(fn=_cmd_seed)
 
     r = sub.add_parser("run")
-    r.add_argument("--suite", choices=[*SUITES, "smoke", "all"], default="smoke")
+    r.add_argument("--suite", choices=[*SUITES, *bench, "smoke", "all"], default="smoke")
     r.add_argument("--repeats", type=int, default=0)
     r.add_argument("--model", default=None, help="override RUNNER_MODEL")
     r.set_defaults(fn=_cmd_run)

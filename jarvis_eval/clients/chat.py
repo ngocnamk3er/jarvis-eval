@@ -22,10 +22,10 @@ _SEARCH_FILES_LINE = re.compile(r"^(/\S+) \(score=", re.M)
 _GREP_LINE = re.compile(r"^(/\S+) \(", re.M)
 
 
-def _client() -> httpx.Client:
+def _client(user: str | None = None) -> httpx.Client:
     return httpx.Client(
         base_url=settings.api_base,
-        headers={**settings.api_headers, "Authorization": f"Bearer {access_token()}"},
+        headers={**settings.api_headers, "Authorization": f"Bearer {access_token(user)}"},
         timeout=httpx.Timeout(settings.RUN_TIMEOUT, connect=15.0),
     )
 
@@ -81,18 +81,18 @@ def _pump(resp: httpx.Response, trace: RunTrace) -> list[dict]:
 
 
 def run_agent(prompt: str, case_id: str, *, web_search: bool = True,
-              model: str | None = None) -> RunTrace:
+              model: str | None = None, user: str | None = None) -> RunTrace:
     model = model or settings.RUNNER_MODEL
     trace = RunTrace(case_id=case_id, model=model)
     started = time.time()
     try:
-        tid = conversations.create(f"[eval] {case_id}")
+        tid = conversations.create(f"[eval] {case_id}", user=user)
         trace.thread_id = tid
         body = {
             "thread_id": tid, "content": prompt, "model": model,
             "thinking_effort": settings.RUNNER_THINKING_EFFORT, "web_search": web_search,
         }
-        with _client() as c:
+        with _client(user) as c:
             with c.stream("POST", "/api/v1/chat/stream", json=body) as resp:
                 resp.raise_for_status()
                 events = _pump(resp, trace)
@@ -111,7 +111,7 @@ def run_agent(prompt: str, case_id: str, *, web_search: bool = True,
         # final assistant text: last assistant message's text parts (more
         # reliable than concatenating token deltas)
         try:
-            msgs = conversations.messages(tid)
+            msgs = conversations.messages(tid, user=user)
             trace.messages = msgs
             seen = {(f.get("name"), f.get("path")) for f in trace.file_outputs}
             for m in reversed(msgs):

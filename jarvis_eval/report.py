@@ -23,6 +23,13 @@ _SUITE_METRICS = {
                "retrieved_gold", "turns", "latency_s", "usd"],
     "agent_tasks": ["success", "tool_choice", "turns", "hitl_rounds", "latency_s", "usd"],
 }
+try:  # standard benchmarks add their own metric lists
+    from jarvis_eval.benchmarks import BENCH_METRICS
+    for _s, (_metrics, _ref) in BENCH_METRICS.items():
+        _SUITE_METRICS[_s] = _metrics
+    _BENCH_REF = {s: ref for s, (_, ref) in BENCH_METRICS.items()}
+except Exception:  # noqa: BLE001
+    _BENCH_REF = {}
 
 
 def _git_sha() -> str:
@@ -55,8 +62,8 @@ def aggregate(rows: list[dict]) -> dict:
         if not cases:
             continue
         agg = {name: mean([m.get(name) for m in cases.values()]) for name in metric_names}
-        if suite != "retrieval":
-            lat = [m.get("latency_s") for m in cases.values()]
+        lat = [m.get("latency_s") for m in cases.values() if m.get("latency_s") is not None]
+        if lat:
             agg["latency_p95"] = pct(lat, 95)
             agg["usd_total"] = round(sum(m.get("usd", 0) or 0 for m in cases.values()), 4)
         agg["n_cases"] = len(cases)
@@ -128,8 +135,10 @@ def render_md(agg: dict, baseline: dict | None) -> str:
 
     for suite, agg_metrics in agg["suites"].items():
         b = base_suites.get(suite, {})
-        lines += [f"## {suite}", "",
-                  f"_{agg_metrics['n_cases']} cases, {agg_metrics['n_errors']} errored_", "",
+        lines += [f"## {suite}", ""]
+        if suite in _BENCH_REF:
+            lines.append(f"_reference: {_BENCH_REF[suite]}_")
+        lines += [f"_{agg_metrics['n_cases']} cases, {agg_metrics['n_errors']} errored_", "",
                   "| metric | value | vs baseline |", "|---|---|---|"]
         for name in _SUITE_METRICS[suite] + [k for k in ("latency_p95", "usd_total") if k in agg_metrics]:
             if name not in agg_metrics:
@@ -165,4 +174,11 @@ def regressions(agg: dict, baseline: dict | None) -> list[str]:
 
 
 def promote_baseline(run_dir: Path) -> None:
-    BASELINE_FILE.write_text((run_dir / "results.json").read_text())
+    """Merge this run's suites into the baseline (so promoting a
+    benchmark-only run doesn't drop the hand-rolled suites, or vice-versa)."""
+    new = json.loads((run_dir / "results.json").read_text())
+    existing = _load_baseline() or {"meta": {}, "suites": {}}
+    existing["meta"] = new["meta"]
+    existing.pop("cases", None)  # aggregates only — per-case data stays in results/
+    existing.setdefault("suites", {}).update(new.get("suites", {}))
+    BASELINE_FILE.write_text(json.dumps(existing, indent=2, ensure_ascii=False))

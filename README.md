@@ -33,6 +33,32 @@ kubectl -n jarvis get secret jarvis-keycloak-secrets \
   -o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_PASSWORD}' | base64 -d ; echo
 ```
 
+## Standard benchmarks
+
+Alongside the hand-rolled suites, `jarvis-eval` runs third-party benchmarks
+downloaded from HuggingFace at seed time. Each gets its own `eval-<name>`
+Keycloak user so its multi-thousand-doc corpus stays isolated (file-service
+vector search has no path filter).
+
+```bash
+jeval setup --all-benchmark-users        # once
+jeval seed --benchmark beir_scifact      # ~5k docs -> the eval-beir-scifact workspace
+jeval run  --suite beir_scifact          # standard IR metrics vs the bge-m3 leaderboard row
+```
+
+| suite | dataset | scores | reference (bge-m3 dense / strong agent) |
+|---|---|---|---|
+| `beir_scifact` | BeIR/scifact (5.2k docs, 300 test queries) | nDCG@10, recall@{10,100}, MRR@10 | nDCG@10 ≈ 0.64 |
+| `beir_nfcorpus` | BeIR/nfcorpus (3.6k docs, 323 queries) | same | nDCG@10 ≈ 0.34 |
+| `hotpotqa` | HotpotQA distractor dev (sampled) | supporting-fact recall@{2,5}, both@k, answer EM/F1 | answer F1 ≈ 0.6–0.8 |
+| `gaia` | GAIA validation, level-1, no-attachment subset | exact-match score | SOTA overall ≈ 0.5–0.7 |
+
+Notes:
+- **cost/time**: seeding a benchmark uploads + embeds thousands of docs (~$0.01–0.02, 10–35 min one-off). `beir_*` runs are then near-free; `hotpotqa` runs the agent over `BENCH_AGENT_SAMPLE` (default 50) questions (~$1–3); retrieval is scored on all sampled questions.
+- **GAIA** is a *gated* HF dataset — set `HF_TOKEN` and accept the terms at https://huggingface.co/datasets/gaia-benchmark/GAIA . Jarvis can't open GAIA's file attachments, so only no-attachment level-1 questions run; expect a low score.
+- knobs in `.env`: `BENCH_MAX_DOCS`, `HOTPOTQA_SAMPLE`, `BENCH_AGENT_SAMPLE`, `HF_TOKEN`.
+- benchmark suites are **not** in the regression gate (their numbers move with model/corpus choices); they're tracked in `report.md` for comparison to published SOTA.
+
 ## Datasets
 
 - `datasets/corpus/` — the ~18-doc fixture workspace (versioned; grow it freely).

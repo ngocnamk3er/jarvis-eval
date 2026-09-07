@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     REPEATS: int = 1
     RUN_TIMEOUT: float = 420.0
 
+    # --- standard benchmarks (hotpotqa / beir_scifact / beir_nfcorpus / gaia) ---
+    # HF token — only GAIA needs it (gated). https://huggingface.co/settings/tokens
+    HF_TOKEN: str = ""
+    # Cap on docs loaded into a benchmark's workspace (Qdrant + embedding cost).
+    BENCH_MAX_DOCS: int = 8000
+    # HotpotQA: how many questions to sample (their paragraph pools form the corpus).
+    HOTPOTQA_SAMPLE: int = 300
+    # Questions actually run through the full agent (retrieval is scored on all).
+    BENCH_AGENT_SAMPLE: int = 50
+
     @property
     def api_base(self) -> str:
         return f"http://{self.INGRESS_IP}"
