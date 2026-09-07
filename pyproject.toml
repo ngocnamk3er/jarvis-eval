@@ -13,7 +13,6 @@ dependencies = [
     "pydantic-settings>=2.10.1",
     "python-dotenv==1.0.1",
     "rich>=13.9.0",
-    "numpy>=2.1.0",
     "pyarrow>=17.0.0",
 ]
 

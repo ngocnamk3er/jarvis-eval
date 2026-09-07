@@ -32,9 +32,7 @@ Verdict: on standard benchmarks Jarvis's retrieval + RAG sits at published
 bge-m3-dense level. The ~3pt NFCorpus gap is the chunking splitting longer
 docs across chunks and diluting their ranking — real signal for RAG work.
 
-A per-run `results/<ts>/report.md` (git-ignored) shows only the suites in
-that run, with deltas vs baseline; `jeval baseline --show` prints the full
-`RESULTS.md` scoreboard without a run.
+`jeval baseline --show` prints the `RESULTS.md` scoreboard without needing a run.
 
 ## Quick start
 
@@ -49,14 +47,26 @@ jeval seed beir_scifact
 jeval seed beir_nfcorpus
 jeval seed hotpotqa
 
-jeval run --suite beir_scifact        # near-free, ~3 min
-jeval run --suite hotpotqa            # retrieval free; ~50 agent Qs ≈ $1–3
-jeval run --suite all                 # everything
-jeval report --baseline --fail-on-regression
-jeval baseline                        # promote the newest run as the new bar
+# score one benchmark
+jeval run --suite beir_scifact               # near-free, ~5 min
+jeval run --suite beir_nfcorpus              # near-free, ~5 min
+jeval run --suite hotpotqa                   # retrieval free; ~50 agent Qs ≈ $1–3
+jeval run --suite gaia                       # needs HF_TOKEN
+
+# several into one report, or everything
+jeval run --suite beir_scifact,beir_nfcorpus
+jeval run --suite all
+
+jeval report --baseline --fail-on-regression # print + gate the newest run
+jeval baseline                               # freeze it as the new bar (updates RESULTS.md)
+jeval baseline --show                        # just print the current scoreboard
 
 make stop-port-forward
 ```
+
+`results/<timestamp>/{report.md, results.json, raw.json}` is written per run
+and kept (git-ignored). `report.md` shows only the suites in that run, with
+deltas vs `datasets/baseline.json`.
 
 Cluster secrets for `.env`:
 
