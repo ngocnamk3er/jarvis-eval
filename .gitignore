@@ -13,9 +13,9 @@ build/
 results/*
 !results/.gitkeep
 
-# Judge response cache
-.judge_cache.json
-
 # `make port-forward` runtime files
 .pf.pid
 .pf.log
+
+# HF dataset cache lives in ~/.cache/jarvis-eval/ but allow an override here
+.hf-cache/

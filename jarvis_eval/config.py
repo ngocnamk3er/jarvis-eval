@@ -4,10 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATASETS = REPO_ROOT / "datasets"
-CORPUS_DIR = DATASETS / "corpus"
 RESULTS_DIR = REPO_ROOT / "results"
 BASELINE_FILE = DATASETS / "baseline.json"
-JUDGE_CACHE_FILE = REPO_ROOT / ".judge_cache.json"
 
 
 class Settings(BaseSettings):
@@ -31,16 +29,12 @@ class Settings(BaseSettings):
     FILE_SERVICE_URL: str = "http://localhost:18002"
     INTERNAL_API_KEY: str = ""
 
-    # --- models ---
+    # --- model the agent runs as for hotpotqa / gaia (a ChatRequest.model id) ---
     RUNNER_MODEL: str = "deepseek/deepseek-v4-flash"
     RUNNER_THINKING_EFFORT: str = "high"
-    JUDGE_MODEL: str = "deepseek/deepseek-v4-pro"
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 
     # --- run behaviour ---
     MAX_HITL_ROUNDS: int = 8
-    REPEATS: int = 1
     RUN_TIMEOUT: float = 420.0
 
     # --- standard benchmarks (hotpotqa / beir_scifact / beir_nfcorpus / gaia) ---

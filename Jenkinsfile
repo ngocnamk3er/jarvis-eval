@@ -11,8 +11,8 @@ pipeline {
   }
 
   environment {
-    // A "Secret file" credential holding the .env for the eval harness:
-    // OPENROUTER_API_KEY, INTERNAL_API_KEY, KC_ADMIN_USERNAME/PASSWORD,
+    // A "Secret file" credential holding the .env for the harness:
+    // INTERNAL_API_KEY, KC_ADMIN_USERNAME/PASSWORD, HF_TOKEN (for GAIA),
     // and INGRESS_IP if it isn't 192.168.49.2. See README.
     EVAL_ENV = credentials('jarvis-eval-env')
   }
@@ -42,31 +42,26 @@ pipeline {
       }
     }
 
-    stage('Setup + seed') {
-      steps {
-        sh '''
-          . .venv/bin/activate
-          jeval setup
-          jeval seed
-        '''
-      }
+    // Assumes the benchmark corpora are already seeded (one-off `make
+    // seed-all`, ~40 min). This job just re-scores + gates — the BEIR
+    // retrieval suites are near-free; add `hotpotqa` for the agent path.
+    stage('Setup') {
+      steps { sh '. .venv/bin/activate && jeval setup' }
     }
 
-    stage('Run smoke suite') {
+    stage('Run BEIR retrieval') {
       steps {
         sh '''
           . .venv/bin/activate
-          jeval run --suite smoke
+          jeval run --suite beir_scifact
+          jeval run --suite beir_nfcorpus
         '''
       }
     }
 
     stage('Report + regression gate') {
       steps {
-        sh '''
-          . .venv/bin/activate
-          jeval report --baseline --fail-on-regression
-        '''
+        sh '. .venv/bin/activate && jeval report --baseline --fail-on-regression'
       }
     }
   }

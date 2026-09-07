@@ -1,10 +1,11 @@
-"""jarvis-eval — a black-box evaluation & benchmarking harness for the Jarvis agent.
+"""jarvis-eval — a black-box benchmark harness for the Jarvis agent.
 
-Runs against the deployed test cluster: authenticates as a dedicated `eval`
-Keycloak user, seeds a versioned corpus into that user's file workspace, then
-scores three suites — `retrieval` (recall@k / MRR / nDCG straight against
-file-service), `rag_qa` and `agent_tasks` (full agent runs through
-/api/v1/chat/stream, graded by an LLM judge + deterministic checks).
+Runs standard public benchmarks (BEIR SciFact/NFCorpus, HotpotQA, GAIA)
+against the deployed test cluster. Each benchmark's corpus is downloaded
+from HuggingFace, uploaded into its own dedicated `eval-<name>` Keycloak
+file workspace and embedded with bge-m3, then scored with the standard
+metrics (nDCG@10 / recall@k for retrieval, EM/F1 for QA) so the numbers
+compare directly to published SOTA.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

@@ -6,7 +6,6 @@
 """
 import concurrent.futures as cf
 import time
-from pathlib import Path
 
 import httpx
 
@@ -88,25 +87,6 @@ def bulk_upload(docs: list[tuple[str, str]], parent_path: str = "/",
 
     with cf.ThreadPoolExecutor(max_workers=concurrency) as ex:
         return sum(1 for ok in ex.map(one, docs) if ok)
-
-
-def seed_corpus(corpus_dir: Path | None = None, user: str | None = None) -> dict:
-    from jarvis_eval.config import CORPUS_DIR
-    corpus_dir = corpus_dir or CORPUS_DIR
-    paths = sorted(p for p in corpus_dir.rglob("*") if p.is_file())
-
-    folders = {str(p.relative_to(corpus_dir).parent) for p in paths} - {"."}
-    for folder in sorted(folders, key=len):
-        ensure_folder("/" + folder, user=user)
-
-    uploaded = 0
-    for folder in ["."] + sorted(folders, key=len):
-        group = [p for p in paths if str(p.relative_to(corpus_dir).parent) == folder]
-        if group:
-            uploaded += bulk_upload([(p.name, p.read_text()) for p in group],
-                                    parent_path="/" + (folder if folder != "." else ""),
-                                    user=user)
-    return {"folders": len(folders), "files": uploaded}
 
 
 def wait_for_indexing(timeout: float = 180.0, poll: float = 3.0,

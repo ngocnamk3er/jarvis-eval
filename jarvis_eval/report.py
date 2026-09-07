@@ -9,27 +9,18 @@ from pathlib import Path
 from jarvis_eval.config import BASELINE_FILE, REPO_ROOT, RESULTS_DIR, settings
 from jarvis_eval.metrics import mean, pct
 
+from jarvis_eval.benchmarks import BENCH_METRICS
+
+_SUITE_METRICS = {s: metrics for s, (metrics, _ref) in BENCH_METRICS.items()}
+_BENCH_REF = {s: ref for s, (_, ref) in BENCH_METRICS.items()}
+
 # metric -> (higher_is_better, regression threshold). Only these gate CI.
 GATES = {
-    "retrieval::recall@5": (True, 0.03),
-    "rag_qa::answer_correctness": (True, 0.30),
-    "agent_tasks::success": (True, 0.05),
+    "beir_scifact::ndcg@10": (True, 0.03),
+    "beir_nfcorpus::ndcg@10": (True, 0.03),
+    "hotpotqa::support_recall@5": (True, 0.05),
+    "hotpotqa::answer_f1": (True, 0.05),
 }
-
-_SUITE_METRICS = {
-    "retrieval": ["recall@1", "recall@3", "recall@5", "recall@10",
-                  "precision@5", "mrr@10", "ndcg@10", "hit", "top1_score"],
-    "rag_qa": ["answer_correctness", "groundedness", "citation_recall",
-               "retrieved_gold", "turns", "latency_s", "usd"],
-    "agent_tasks": ["success", "tool_choice", "turns", "hitl_rounds", "latency_s", "usd"],
-}
-try:  # standard benchmarks add their own metric lists
-    from jarvis_eval.benchmarks import BENCH_METRICS
-    for _s, (_metrics, _ref) in BENCH_METRICS.items():
-        _SUITE_METRICS[_s] = _metrics
-    _BENCH_REF = {s: ref for s, (_, ref) in BENCH_METRICS.items()}
-except Exception:  # noqa: BLE001
-    _BENCH_REF = {}
 
 
 def _git_sha() -> str:
@@ -73,7 +64,6 @@ def aggregate(rows: list[dict]) -> dict:
         "meta": {
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "runner_model": settings.RUNNER_MODEL,
-            "judge_model": settings.JUDGE_MODEL,
             "git_sha": _git_sha(),
         },
         "suites": suites,
@@ -114,7 +104,7 @@ def _delta(cur, base, higher_better=True) -> str:
     if base is None or cur is None or not isinstance(cur, (int, float)) or not isinstance(base, (int, float)):
         return ""
     d = cur - base
-    if abs(d) < 1e-9:
+    if abs(d) < 5e-4:  # below display precision
         return "±0"
     arrow = "▲" if d > 0 else "▼"
     good = (d > 0) == higher_better
@@ -127,7 +117,7 @@ def render_md(agg: dict, baseline: dict | None) -> str:
     lines = [
         f"# Jarvis eval — {m['timestamp']}",
         "",
-        f"- runner model: `{m['runner_model']}`  ·  judge: `{m['judge_model']}`  ·  eval sha: `{m['git_sha']}`",
+        f"- agent model: `{m['runner_model']}`  ·  eval sha: `{m['git_sha']}`",
     ]
     if baseline:
         lines.append(f"- baseline: `{baseline['meta']['timestamp']}` (runner `{baseline['meta']['runner_model']}`)")

@@ -1,89 +1,64 @@
-"""jeval — command line for the Jarvis eval harness.
+"""jeval — command line for the Jarvis benchmark harness.
 
-    jeval setup                     create/enable the `eval` Keycloak user
-    jeval seed                      wipe + re-upload datasets/corpus, wait for indexing
-    jeval run --suite retrieval|rag_qa|agent_tasks|smoke|all [--repeats N] [--model ID]
+    jeval setup                       create/enable the eval Keycloak users
+    jeval seed <benchmark>            download + upload + embed a benchmark's corpus
+    jeval run --suite <benchmark|all> [--model ID]
     jeval report [RUN_DIR] [--baseline] [--fail-on-regression]
-    jeval baseline [RUN_DIR]        promote a run's results.json to datasets/baseline.json
+    jeval baseline [RUN_DIR]          promote a run's results.json to datasets/baseline.json
+
+benchmarks: beir_scifact · beir_nfcorpus · hotpotqa · gaia
 """
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from rich.console import Console
 
 from jarvis_eval import report
+from jarvis_eval.benchmarks import BENCHMARKS
+from jarvis_eval.clients.auth import ensure_user
 from jarvis_eval.config import settings
-from jarvis_eval.dataset import SUITES, load, smoke
 
 console = Console()
+BENCH = list(BENCHMARKS)
 
 
-def _cmd_setup(args) -> int:
-    from jarvis_eval.benchmarks import BENCHMARKS
-    from jarvis_eval.clients.auth import ensure_user
+def _bench_user(name: str) -> str:
+    return f"{settings.EVAL_USERNAME}-{name.replace('_', '-')}"
+
+
+def _cmd_setup(_args) -> int:
     console.print(f"[green]{settings.EVAL_USERNAME}[/] — sub [bold]{ensure_user()}[/]")
-    if getattr(args, "all_benchmark_users", False):
-        for b in BENCHMARKS:
-            u = f"{settings.EVAL_USERNAME}-{b.replace('_', '-')}"
-            console.print(f"[green]{u}[/] — sub [bold]{ensure_user(u)}[/]")
+    for b in BENCH:
+        u = _bench_user(b)
+        console.print(f"[green]{u}[/] — sub [bold]{ensure_user(u)}[/]")
     return 0
 
 
 def _cmd_seed(args) -> int:
-    from jarvis_eval.benchmarks import BENCHMARKS
-    from jarvis_eval.clients import files
-
-    if args.benchmark:
-        from jarvis_eval.clients.auth import ensure_user
-        u = f"{settings.EVAL_USERNAME}-{args.benchmark.replace('_', '-')}"
-        ensure_user(u)
-        console.rule(f"seed {args.benchmark}  (user {u})")
-        console.print(BENCHMARKS[args.benchmark][0]())
-        return 0
-
-    removed = files.wipe()
-    console.print(f"wiped {removed} top-level node(s)")
-    stats = files.seed_corpus()
-    console.print(f"uploaded {stats['files']} files into {stats['folders']} folders; waiting for indexing…")
-    done = files.wait_for_indexing()
-    by_status: dict[str, int] = {}
-    for e in done:
-        by_status[e["indexing_status"]] = by_status.get(e["indexing_status"], 0) + 1
-    console.print(f"[green]indexed[/]: {by_status}")
-    return 0 if by_status.get("failed", 0) == 0 else 1
+    u = _bench_user(args.benchmark)
+    ensure_user(u)
+    console.rule(f"seed {args.benchmark}  (user {u})")
+    console.print(BENCHMARKS[args.benchmark][0]())
+    return 0
 
 
 def _cmd_run(args) -> int:
-    from jarvis_eval.benchmarks import BENCHMARKS
-    from jarvis_eval.runners import RUNNERS
-
-    if args.suite in ("all", "smoke"):
-        which = list(SUITES)
-    else:
-        which = [args.suite]
-    pick = smoke if args.suite == "smoke" else load
-    repeats = args.repeats or settings.REPEATS
+    which = BENCH if args.suite == "all" else [args.suite]
     if args.model:
         settings.RUNNER_MODEL = args.model
 
     all_rows: list[dict] = []
     for suite in which:
-        if suite in BENCHMARKS:
-            from jarvis_eval.clients.auth import ensure_user
-            ensure_user(f"{settings.EVAL_USERNAME}-{suite.replace('_', '-')}")
-            console.rule(f"{suite} (benchmark)")
-            rows = BENCHMARKS[suite][1](None, repeats=1)
-        else:
-            cases = pick(suite)
-            console.rule(f"{suite} · {len(cases)} case(s) × {repeats}")
-            rows = RUNNERS[suite](cases, repeats=repeats)
+        ensure_user(_bench_user(suite))
+        console.rule(f"{suite}")
+        rows = BENCHMARKS[suite][1](None, repeats=1)
         for r in rows:
             err = r["meta"].get("error")
-            tag = "[red]ERR[/]" if err else "[green]ok[/]"
-            console.print(f"  {tag} {r['case_id']}#{r['repeat']}  "
-                          f"{json.dumps({k: round(v, 3) for k, v in r['metrics'].items() if isinstance(v, (int, float))})}"
-                          + (f"  [red]{err}[/]" if err else ""))
+            nums = {k: round(v, 3) for k, v in r["metrics"].items() if isinstance(v, (int, float))}
+            console.print(f"  {'[red]ERR[/]' if err else '[green]ok[/]'} {r['case_id']}  "
+                          f"{json.dumps(nums)}" + (f"  [red]{err}[/]" if err else ""))
         all_rows += rows
 
     run_dir = report.write_run(all_rows)
@@ -123,7 +98,6 @@ def _cmd_baseline(args) -> int:
 
 
 def _resolve_run(arg):
-    from pathlib import Path
     if arg:
         p = Path(arg)
         return p if (p / "results.json").exists() else None
@@ -135,22 +109,14 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    from jarvis_eval.benchmarks import BENCHMARKS
-    bench = list(BENCHMARKS)
-
-    st = sub.add_parser("setup")
-    st.add_argument("--all-benchmark-users", action="store_true",
-                    help="also create eval-<benchmark> users")
-    st.set_defaults(fn=_cmd_setup)
+    sub.add_parser("setup").set_defaults(fn=_cmd_setup)
 
     s = sub.add_parser("seed")
-    s.add_argument("--benchmark", choices=bench, default=None,
-                   help="seed a standard benchmark's corpus instead of the hand corpus")
+    s.add_argument("benchmark", choices=BENCH)
     s.set_defaults(fn=_cmd_seed)
 
     r = sub.add_parser("run")
-    r.add_argument("--suite", choices=[*SUITES, *bench, "smoke", "all"], default="smoke")
-    r.add_argument("--repeats", type=int, default=0)
+    r.add_argument("--suite", choices=[*BENCH, "all"], required=True)
     r.add_argument("--model", default=None, help="override RUNNER_MODEL")
     r.set_defaults(fn=_cmd_run)
 

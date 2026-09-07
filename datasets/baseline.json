@@ -2,49 +2,9 @@
   "meta": {
     "timestamp": "2026-09-07T04:42:06Z",
     "runner_model": "deepseek/deepseek-v4-flash",
-    "judge_model": "deepseek/deepseek-v4-pro",
-    "git_sha": "?",
-    "note": "hand-rolled: deepseek-v4-flash. beir_*: file-service bge-m3 dense. hotpotqa: retrieval on 300 sampled Qs, answers on 45/50 (5 agent timeouts)."
+    "note": "beir_*: file-service bge-m3 dense retrieval. hotpotqa: retrieval on 300 sampled Qs, answers on 45/50 (5 agent timeouts). 2026-09-07."
   },
   "suites": {
-    "retrieval": {
-      "recall@1": 0.8182,
-      "recall@3": 1.0,
-      "recall@5": 1.0,
-      "recall@10": 1.0,
-      "precision@5": 0.2,
-      "mrr@10": 0.9015,
-      "ndcg@10": 0.9269,
-      "hit": 1.0,
-      "top1_score": 0.5902,
-      "n_cases": 22,
-      "n_errors": 0
-    },
-    "rag_qa": {
-      "answer_correctness": 5.0,
-      "groundedness": 4.875,
-      "citation_recall": 1.0,
-      "retrieved_gold": 0.9375,
-      "turns": 3.5625,
-      "latency_s": 17.2769,
-      "usd": 0.0014,
-      "latency_p95": 22.57,
-      "usd_total": 0.0223,
-      "n_cases": 16,
-      "n_errors": 0
-    },
-    "agent_tasks": {
-      "success": 0.8571,
-      "tool_choice": 4.4286,
-      "turns": 3.2857,
-      "hitl_rounds": 1.0714,
-      "latency_s": 21.52,
-      "usd": 0.0016,
-      "latency_p95": 46.38,
-      "usd_total": 0.0223,
-      "n_cases": 14,
-      "n_errors": 0
-    },
     "beir_scifact": {
       "ndcg@10": 0.654,
       "recall@10": 0.797,

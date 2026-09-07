@@ -21,4 +21,4 @@ dependencies = [
 jeval = "jarvis_eval.cli:main"
 
 [tool.setuptools]
-packages = ["jarvis_eval", "jarvis_eval.clients", "jarvis_eval.runners", "jarvis_eval.benchmarks"]
+packages = ["jarvis_eval", "jarvis_eval.clients", "jarvis_eval.benchmarks"]
