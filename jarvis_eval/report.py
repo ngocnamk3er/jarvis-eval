@@ -130,31 +130,45 @@ def _delta(cur, base, higher_better=True) -> str:
 
 
 def render_md(agg: dict, baseline: dict | None) -> str:
-    """The per-run report: one table per suite (+ deltas vs baseline), then a
-    collapsible per-case dump."""
+    """The per-run report: one table per suite, then a collapsible per-case
+    dump. Suites that ran this time show live values + deltas vs baseline;
+    suites only in the baseline are still shown (marked 'not run this time')
+    so the report is always the full picture."""
     m = agg["meta"]
     base_suites = (baseline or {}).get("suites", {})
+    run_suites = set(agg["suites"])
     lines = [
         f"# Jarvis eval — {m['timestamp']}",
         "",
         f"- agent model: `{m['runner_model']}`  ·  eval sha: `{m['git_sha']}`",
+        f"- suites run: {', '.join(run_suites) or '(none)'}",
     ]
     if baseline:
         lines.append(f"- baseline: `{baseline['meta']['timestamp']}` (runner `{baseline['meta']['runner_model']}`)")
     lines.append("")
 
-    for suite, agg_metrics in agg["suites"].items():
+    # every known suite, in a stable order: what ran + anything only in baseline
+    for suite in list(_SUITE_METRICS) + [s for s in base_suites if s not in _SUITE_METRICS]:
+        live = suite in run_suites
+        agg_metrics = agg["suites"].get(suite) or base_suites.get(suite)
+        if not agg_metrics:
+            continue
         b = base_suites.get(suite, {})
         lines += [f"## {suite}", ""]
         if suite in _BENCH_REF:
             lines.append(f"_reference: {_BENCH_REF[suite]}_")
-        lines += [f"_{agg_metrics['n_cases']} cases, {agg_metrics['n_errors']} errored_", "",
-                  "| metric | value | vs baseline |", "|---|---|---|"]
-        for name in _SUITE_METRICS[suite] + [k for k in ("latency_p95", "usd_total") if k in agg_metrics]:
+        if live:
+            lines.append(f"_{agg_metrics['n_cases']} cases, {agg_metrics['n_errors']} errored_")
+        else:
+            lines.append("_not run this time — showing baseline_")
+        lines += ["", "| metric | value | vs baseline |", "|---|---|---|"]
+        for name in _SUITE_METRICS.get(suite, list(agg_metrics)) + \
+                [k for k in ("latency_p95", "usd_total") if k in agg_metrics]:
             if name not in agg_metrics:
                 continue
             hib = name not in ("turns", "hitl_rounds", "latency_s", "latency_p95", "usd", "usd_total")
-            lines.append(f"| {name} | {_fmt(agg_metrics[name])} | {_delta(agg_metrics[name], b.get(name), hib)} |")
+            delta = _delta(agg_metrics[name], b.get(name), hib) if live else ""
+            lines.append(f"| {name} | {_fmt(agg_metrics[name])} | {delta} |")
         lines.append("")
 
     lines += ["<details><summary>per-case</summary>", ""]
