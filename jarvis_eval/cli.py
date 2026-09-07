@@ -6,6 +6,9 @@
     jeval report [RUN_DIR] [--baseline] [--fail-on-regression]
     jeval baseline [RUN_DIR]          promote a run into datasets/baseline.json + RESULTS.md
     jeval baseline --show             print the current scoreboard (all suites)
+    jeval embcompare <model> [--dims N] [--suite ...]
+                                     score a candidate embedding model on BEIR
+                                     offline (no cluster), vs the baseline
 
 benchmarks: beir_scifact · beir_nfcorpus · hotpotqa · gaia
 
@@ -121,6 +124,15 @@ def _cmd_baseline(args) -> int:
     return 0
 
 
+def _cmd_embcompare(args) -> int:
+    """`jeval embcompare <model>` — offline BEIR score for a candidate
+    embedding model, next to the deployed baseline."""
+    from jarvis_eval import embcompare
+    suites = args.suite.split(",") if args.suite else ["beir_scifact", "beir_nfcorpus"]
+    embcompare.run(args.model, args.dims, suites)
+    return 0
+
+
 def _resolve_run(arg):
     """A run dir given on the CLI, or the newest one under results/."""
     if arg:
@@ -158,6 +170,12 @@ def main() -> None:
     b.add_argument("run_dir", nargs="?", default=None)
     b.add_argument("--show", action="store_true", help="print the current scoreboard, don't promote")
     b.set_defaults(fn=_cmd_baseline)
+
+    e = sub.add_parser("embcompare")
+    e.add_argument("model", help="e.g. openai/text-embedding-3-large")
+    e.add_argument("--dims", type=int, default=None, help="request this many dimensions")
+    e.add_argument("--suite", default=None, help="comma list of BEIR suites (default: both)")
+    e.set_defaults(fn=_cmd_embcompare)
 
     args = p.parse_args()
     sys.exit(args.fn(args))     # args.fn is the _cmd_* picked by the subcommand

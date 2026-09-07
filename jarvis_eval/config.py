@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     RUNNER_MODEL: str = "deepseek/deepseek-v4-flash"
     RUNNER_THINKING_EFFORT: str = "high"
 
+    # --- `jeval embcompare` only: an OpenAI-compatible /embeddings endpoint,
+    # to score a candidate embedding model offline before deploying it ---
+    EMBEDDING_BASE_URL: str = "https://openrouter.ai/api/v1"
+    EMBEDDING_API_KEY: str = ""   # jarvis-secrets EMBEDDING_API_KEY (an OpenRouter key)
+
     # --- agent run behaviour ---
     MAX_HITL_ROUNDS: int = 8       # auto-approve this many bash prompts before giving up
     RUN_TIMEOUT: float = 420.0     # wall-clock ceiling for one agent run (seconds)
