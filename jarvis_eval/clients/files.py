@@ -58,17 +58,30 @@ def list_all(path: str = "/", user: str | None = None) -> list[dict]:
     return out
 
 
-def wipe(user: str | None = None) -> int:
-    """Delete every top-level node (cascades). Called at the start of seed()
-    so a re-seed is clean. Returns how many were removed."""
+def wipe(user: str | None = None, concurrency: int = 16) -> int:
+    """Empty the workspace. Deletes every file node concurrently, then the
+    (now-empty) folders — a single cascading folder delete of a 5k-doc corpus
+    server-side is one > 60s request that times out. Returns files removed."""
     uid = user_sub(user)
-    with _svc() as c:
-        r = c.get("/api/v1/files/tree", params={"user_id": uid, "path": "/"})
-        r.raise_for_status()
-        nodes = r.json()
-        for n in nodes:
-            c.delete(f"/api/v1/files/nodes/{n['id']}", params={"user_id": uid})
-    return len(nodes)
+    entries = list_all(user=user)
+    files_ = [e for e in entries if e["type"] == "file"]
+    folders = sorted((e for e in entries if e["type"] == "folder"),
+                     key=lambda e: e["path"].count("/"), reverse=True)   # deepest first
+
+    def _del(node_id):
+        for attempt in range(3):
+            try:
+                with _svc() as c:
+                    c.delete(f"/api/v1/files/nodes/{node_id}", params={"user_id": uid})
+                return
+            except httpx.HTTPError:
+                time.sleep(1 + attempt)
+
+    with cf.ThreadPoolExecutor(max_workers=concurrency) as ex:
+        list(ex.map(lambda e: _del(e["id"]), files_))
+    for f in folders:                                # folders are few; serial is fine
+        _del(f["id"])
+    return len(files_)
 
 
 def ensure_folder(path: str, user: str | None = None) -> None:
