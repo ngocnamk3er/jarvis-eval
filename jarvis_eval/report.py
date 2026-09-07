@@ -216,14 +216,20 @@ def render_baseline_md() -> str:
         lines += [f"## {suite}", ""]
         if suite in _BENCH_REF:
             lines.append(f"_reference: {_BENCH_REF[suite]}_")
+        notes = []
         lines += ["", "| metric | value |", "|---|---|"]
         for k, v in s.items():
             if k in ("n_cases", "n_errors"):
+                continue
+            if k.endswith("_note"):
+                notes.append(str(v))
                 continue
             lines.append(f"| {k} | {_fmt(v)} |")
         n = s.get("n_cases") or s.get("retrieval_n_cases")
         if n is not None:
             lines.append(f"| _cases_ | {n} ({s.get('n_errors', 0)} errored) |")
+        for note in notes:
+            lines += ["", f"_{note}_"]
         lines.append("")
     return "\n".join(x for x in lines if x is not None) + "\n"
 

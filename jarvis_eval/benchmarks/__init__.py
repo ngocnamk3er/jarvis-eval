@@ -29,12 +29,14 @@ BENCHMARKS = {
     "gaia": (gaia.seed, gaia.run),
 }
 
-# suite -> (metrics to show in the report, "reference: <published number>")
+# suite -> (metrics to show in the report, "reference: <published number>").
+# Jarvis is on openai/text-embedding-3-large @1024 dims — compare to that
+# model's published BEIR numbers (bge-m3 dense was ~0.64 / ~0.34).
 BENCH_METRICS = {
     "beir_scifact": (["ndcg@10", "recall@10", "recall@100", "mrr@10"],
-                     "bge-m3 dense ≈ ndcg@10 0.64"),
+                     "text-embedding-3-large ndcg@10 ≈ 0.77 (bge-m3 was 0.64)"),
     "beir_nfcorpus": (["ndcg@10", "recall@10", "recall@100", "mrr@10"],
-                      "bge-m3 dense ≈ ndcg@10 0.34"),
+                      "text-embedding-3-large ndcg@10 ≈ 0.42 (bge-m3 was 0.34)"),
     "hotpotqa": (["support_recall@2", "support_recall@5", "both@2", "both@5",
                   "answer_em", "answer_f1", "support_read", "latency_s", "usd"],
                  "distractor-setting retrieval; strong RAG answer_f1 ≈ 0.6-0.8"),

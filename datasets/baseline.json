@@ -1,38 +1,40 @@
 {
   "meta": {
-    "timestamp": "2026-09-07T04:42:06Z",
+    "timestamp": "2026-09-07T16:21:03Z",
     "runner_model": "deepseek/deepseek-v4-flash",
-    "note": "beir_*: file-service bge-m3 dense retrieval. hotpotqa: retrieval on 300 sampled Qs, answers on 45/50 (5 agent timeouts). 2026-09-07."
+    "git_sha": "3ad93d4",
+    "note": "embeddings: openai/text-embedding-3-large @1024 dims (was baai/bge-m3). beir_* full test sets; hotpotqa retrieval on 300 sampled Qs. 2026-09-07."
   },
   "suites": {
     "beir_scifact": {
-      "ndcg@10": 0.654,
-      "recall@10": 0.797,
-      "recall@100": 0.908,
-      "mrr@10": 0.619,
+      "ndcg@10": 0.7687,
+      "recall@10": 0.895,
+      "recall@100": 0.9767,
+      "mrr@10": 0.7357,
       "n_cases": 300,
       "n_errors": 0
     },
     "beir_nfcorpus": {
-      "ndcg@10": 0.3162,
-      "recall@10": 0.1502,
-      "recall@100": 0.2824,
-      "mrr@10": 0.5237,
+      "ndcg@10": 0.4098,
+      "recall@10": 0.2011,
+      "recall@100": 0.3854,
+      "mrr@10": 0.6205,
       "n_cases": 323,
       "n_errors": 0
     },
     "hotpotqa": {
-      "support_recall@2": 0.723,
-      "support_recall@5": 0.855,
-      "both@2": 0.493,
-      "both@5": 0.72,
+      "support_recall@2": 0.733,
+      "support_recall@5": 0.887,
+      "both@2": 0.513,
+      "both@5": 0.777,
       "answer_em": 0.58,
       "answer_f1": 0.71,
       "answer_n": 45,
       "retrieval_n_cases": 300,
       "n_errors": 5,
       "latency_p95_s": 282,
-      "usd_agent_total": 0.3
+      "usd_agent_total": 0.3,
+      "answer_note": "answers from a bge-m3-era 45/50 agent run; retrieval since re-measured with text-embedding-3-large"
     }
   }
 }
