@@ -1,0 +1,7 @@
+Home network notes
+
+- Router at 192.168.1.1, admin login in the password manager.
+- The dev machine runs minikube on Docker; jarvis.local / api.jarvis.local
+  / auth.jarvis.local are mapped to 192.168.49.2 in /etc/hosts.
+- GitLab on :8929, Jenkins on :8080, both docker-compose on the host.
+- Wi-Fi extender in the back room is on channel 6; move to 11 if it drops.

@@ -1,0 +1,22 @@
+{"id": "r01", "query": "Why is the relational database the source of truth instead of the object store?", "gold_paths": ["/research/database-per-service.md"], "note": "core RFC-style note"}
+{"id": "r02", "query": "Which embedding model did we pick for semantic search and why?", "gold_paths": ["/research/embeddings-and-vector-search.md"]}
+{"id": "r03", "query": "How do I fix Keycloak CrashLoopBackOff after rebooting the machine?", "gold_paths": ["/docs/deployment-runbook.md"]}
+{"id": "r04", "query": "chunk size and overlap used when embedding files", "gold_paths": ["/research/embeddings-and-vector-search.md"]}
+{"id": "r05", "query": "how do the microservices authenticate calls to each other", "gold_paths": ["/docs/api-conventions.md"]}
+{"id": "r06", "query": "what is planned next on the Jarvis roadmap after the file workspace", "gold_paths": ["/projects/jarvis/roadmap.md"]}
+{"id": "r07", "query": "known problems with MinIO uploads and orphaned objects", "gold_paths": ["/projects/jarvis/known-issues.md"]}
+{"id": "r08", "query": "what spices go in the pho broth", "gold_paths": ["/recipes/pho-bo.txt"]}
+{"id": "r09", "query": "how to make do chua pickled carrot and daikon for banh mi", "gold_paths": ["/recipes/banh-mi.txt"]}
+{"id": "r10", "query": "which wifi channel is the extender on", "gold_paths": ["/notes/home-network-setup.txt"]}
+{"id": "r11", "query": "what books am I currently reading or planning to read", "gold_paths": ["/notes/reading-list.md"]}
+{"id": "r12", "query": "definition of a saga and a bounded context", "gold_paths": ["/docs/glossary.md"]}
+{"id": "r13", "query": "which bounded contexts have been extracted into their own services so far", "gold_paths": ["/docs/architecture.md"], "note": "README also lists services; architecture.md is the decomposition note"}
+{"id": "r14", "query": "circuit breaker half-open state and cooldown", "gold_paths": ["/research/retry-and-circuit-breaker.md"]}
+{"id": "r15", "query": "how to look after the balcony basil plant", "gold_paths": ["/projects/side/garden-log.md"]}
+{"id": "r16", "query": "trip idea to see the small smiling marsupials", "gold_paths": ["/notes/travel-wishlist.txt"], "note": "quokkas never named in query"}
+{"id": "r17", "query": "notes from the Q3 planning sync", "gold_paths": ["/notes/meeting-2026-09-01.md"]}
+{"id": "r18", "query": "local dev port numbers for backend conversation file and sandbox services", "gold_paths": ["/docs/api-conventions.md"]}
+{"id": "r19", "query": "steps to deploy jarvis-file-service since it has no Jenkins job", "gold_paths": ["/docs/deployment-runbook.md"], "note": "also mentioned in known-issues; runbook has the procedure"}
+{"id": "r20", "query": "one paragraph overview of what Jarvis is", "gold_paths": ["/docs/README.md"]}
+{"id": "r21", "query": "why is the MinIO object key opaque rather than the file path", "gold_paths": ["/research/database-per-service.md"]}
+{"id": "r22", "query": "what compensating actions are for in distributed transactions", "gold_paths": ["/docs/glossary.md"]}
