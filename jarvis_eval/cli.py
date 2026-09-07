@@ -4,7 +4,8 @@
     jeval seed <benchmark>            download + upload + embed a benchmark's corpus
     jeval run --suite <benchmark|all> [--model ID]
     jeval report [RUN_DIR] [--baseline] [--fail-on-regression]
-    jeval baseline [RUN_DIR]          promote a run's results.json to datasets/baseline.json
+    jeval baseline [RUN_DIR]          promote a run into datasets/baseline.json + RESULTS.md
+    jeval baseline --show             print the current scoreboard (all suites)
 
 benchmarks: beir_scifact · beir_nfcorpus · hotpotqa · gaia
 """
@@ -92,12 +93,17 @@ def _cmd_report(args) -> int:
 
 
 def _cmd_baseline(args) -> int:
+    md = report.render_baseline_md()
+    if args.show:
+        console.print(md)
+        return 0
     run_dir = _resolve_run(args.run_dir)
     if run_dir is None:
         console.print("[red]no runs found[/]")
         return 1
     report.promote_baseline(run_dir)
-    console.print(f"[green]baseline updated[/] from {run_dir.name}")
+    (report.REPO_ROOT / "RESULTS.md").write_text(report.render_baseline_md())
+    console.print(f"[green]baseline + RESULTS.md updated[/] from {run_dir.name}")
     return 0
 
 
@@ -133,6 +139,7 @@ def main() -> None:
 
     b = sub.add_parser("baseline")
     b.add_argument("run_dir", nargs="?", default=None)
+    b.add_argument("--show", action="store_true", help="print the current scoreboard, don't promote")
     b.set_defaults(fn=_cmd_baseline)
 
     args = p.parse_args()

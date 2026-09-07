@@ -163,6 +163,36 @@ def regressions(agg: dict, baseline: dict | None) -> list[str]:
     return out
 
 
+def render_baseline_md() -> str:
+    """A standalone, committable scoreboard rendered straight from
+    datasets/baseline.json — always shows every suite, no run needed."""
+    b = _load_baseline() or {"meta": {}, "suites": {}}
+    m = b.get("meta", {})
+    lines = [
+        "# jarvis-eval — current scores",
+        "",
+        f"_Generated from `datasets/baseline.json` · agent model `{m.get('runner_model', '?')}` · "
+        f"{m.get('timestamp', '?')}_",
+        "",
+        f"> {m['note']}" if m.get("note") else "",
+        "",
+    ]
+    for suite, s in b.get("suites", {}).items():
+        lines += [f"## {suite}", ""]
+        if suite in _BENCH_REF:
+            lines.append(f"_reference: {_BENCH_REF[suite]}_")
+        lines += ["", "| metric | value |", "|---|---|"]
+        for k, v in s.items():
+            if k in ("n_cases", "n_errors"):
+                continue
+            lines.append(f"| {k} | {_fmt(v)} |")
+        n = s.get("n_cases") or s.get("retrieval_n_cases")
+        if n is not None:
+            lines.append(f"| _cases_ | {n} ({s.get('n_errors', 0)} errored) |")
+        lines.append("")
+    return "\n".join(x for x in lines if x is not None) + "\n"
+
+
 def promote_baseline(run_dir: Path) -> None:
     """Merge this run's suites into the baseline (so promoting a
     benchmark-only run doesn't drop the hand-rolled suites, or vice-versa)."""
