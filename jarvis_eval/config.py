@@ -1,67 +1,90 @@
+"""Central configuration.
+
+Every knob lives here as a pydantic-settings field, so it can be set from
+`.env`, an environment variable, or left at the default below. `settings`
+(the singleton at the bottom) is imported everywhere else in the package.
+"""
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# --- fixed paths, derived from where this file sits -----------------------
+REPO_ROOT = Path(__file__).resolve().parent.parent   # .../jarvis-eval/
 DATASETS = REPO_ROOT / "datasets"
-RESULTS_DIR = REPO_ROOT / "results"
-BASELINE_FILE = DATASETS / "baseline.json"
+RESULTS_DIR = REPO_ROOT / "results"                   # per-run outputs (git-ignored)
+BASELINE_FILE = DATASETS / "baseline.json"            # the frozen reference scores
 
 
 class Settings(BaseSettings):
+    # env_file=".env": load overrides from a .env in the cwd.
+    # case_sensitive: env var names must match field names exactly.
+    # extra="ignore": tolerate unknown keys in .env instead of erroring.
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
-    # --- cluster access ---
+    # --- how to reach the deployed test cluster ---
+    # Everything is vhost-routed off one ingress IP; we send a `Host:` header
+    # per service (the same trick as `curl --resolve`). Point INGRESS_IP at
+    # `minikube ip -p minikube`.
     INGRESS_IP: str = "192.168.49.2"
-    API_HOST: str = "api.jarvis.local"
-    AUTH_HOST: str = "auth.jarvis.local"
+    API_HOST: str = "api.jarvis.local"     # jarvis-backend
+    AUTH_HOST: str = "auth.jarvis.local"   # keycloak
 
     # --- keycloak ---
     KC_REALM: str = "jarvis"
-    KC_CLIENT_ID: str = "jarvis-frontend"
+    KC_CLIENT_ID: str = "jarvis-frontend"          # the OIDC client we log in through
     KC_CLIENT_SECRET: str = "jarvis-dev-secret"
-    EVAL_USERNAME: str = "eval"
-    EVAL_PASSWORD: str = "eval123"
-    KC_ADMIN_USERNAME: str = "admin"
-    KC_ADMIN_PASSWORD: str = "admin"
+    EVAL_USERNAME: str = "eval"                    # base user; benchmarks use eval-<name>
+    EVAL_PASSWORD: str = "eval123"                 # every eval user gets this password
+    KC_ADMIN_USERNAME: str = "admin"              # master-realm admin, to create users
+    KC_ADMIN_PASSWORD: str = "admin"              # from the jarvis-keycloak-secrets k8s secret
 
-    # --- file-service (direct, via `make port-forward`) ---
+    # --- file-service (talked to directly, needs `make port-forward` first) ---
+    # It is ClusterIP-only and the backend does not proxy its /search/* routes.
     FILE_SERVICE_URL: str = "http://localhost:18002"
-    INTERNAL_API_KEY: str = ""
+    INTERNAL_API_KEY: str = ""                    # from the jarvis-secrets k8s secret
 
-    # --- model the agent runs as for hotpotqa / gaia (a ChatRequest.model id) ---
+    # --- model the agent runs as for the hotpotqa / gaia suites ---
+    # (BEIR is pure retrieval, no agent.) A ChatRequest.model id — see
+    # jarvis-backend AVAILABLE_MODELS.
     RUNNER_MODEL: str = "deepseek/deepseek-v4-flash"
     RUNNER_THINKING_EFFORT: str = "high"
 
-    # --- run behaviour ---
-    MAX_HITL_ROUNDS: int = 8
-    RUN_TIMEOUT: float = 420.0
+    # --- agent run behaviour ---
+    MAX_HITL_ROUNDS: int = 8       # auto-approve this many bash prompts before giving up
+    RUN_TIMEOUT: float = 420.0     # wall-clock ceiling for one agent run (seconds)
 
-    # --- standard benchmarks (hotpotqa / beir_scifact / beir_nfcorpus / gaia) ---
-    # HF token — only GAIA needs it (gated). https://huggingface.co/settings/tokens
+    # --- benchmarks ---
+    # HF token — only GAIA needs it (gated dataset). https://huggingface.co/settings/tokens
     HF_TOKEN: str = ""
-    # Cap on docs loaded into a benchmark's workspace (Qdrant + embedding cost).
+    # Cap on docs loaded into a benchmark workspace (bounds embedding + Qdrant cost).
     BENCH_MAX_DOCS: int = 8000
-    # HotpotQA: how many questions to sample (their paragraph pools form the corpus).
+    # HotpotQA: how many questions to sample. Their 10-paragraph pools, deduped,
+    # become the corpus — 300 questions ≈ 3000 paragraphs.
     HOTPOTQA_SAMPLE: int = 300
-    # Questions actually run through the full agent (retrieval is scored on all).
+    # Of the sample, how many to actually run through the agent (answer EM/F1).
+    # Retrieval metrics are scored on all sampled questions regardless.
     BENCH_AGENT_SAMPLE: int = 50
 
+    # --- convenience accessors (computed, not stored) ---
     @property
     def api_base(self) -> str:
         return f"http://{self.INGRESS_IP}"
 
     @property
     def api_headers(self) -> dict:
+        """Attach to every request meant for jarvis-backend."""
         return {"Host": self.API_HOST}
 
     @property
     def auth_headers(self) -> dict:
+        """Attach to every request meant for keycloak."""
         return {"Host": self.AUTH_HOST}
 
     @property
     def token_url(self) -> str:
+        """Keycloak's OIDC token endpoint (password grant + refresh)."""
         return f"/realms/{self.KC_REALM}/protocol/openid-connect/token"
 
 
+# Instantiated once at import time; reads .env here. Import this, not the class.
 settings = Settings()

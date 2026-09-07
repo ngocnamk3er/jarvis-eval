@@ -1,20 +1,24 @@
-"""GAIA (validation, level 1) — real multi-step assistant tasks, exact-match
-scored with GAIA's own normalisation.
+"""GAIA (validation, level 1) — real multi-step assistant tasks.
 
-GAIA is a *gated* HF dataset: set HF_TOKEN (https://huggingface.co/settings/
-tokens) and accept the terms once at
-https://huggingface.co/datasets/gaia-benchmark/GAIA .
+Unlike the other suites there's no corpus: GAIA questions are answered from
+the open web (the agent uses web_search / web_fetch). Scored by exact match
+after GAIA's normalisation (numbers ignore commas/units, lists compare
+element-wise, strings ignore case/articles/punctuation).
 
-Many GAIA questions ship a file attachment (xlsx/pdf/image) the agent must
-open. Jarvis has no way to ingest those, so this suite runs only the
-level-1 questions with **no attachment** — expect a low score; it partly
-measures "Jarvis is not a browsing agent", which is useful signal on its own.
+Two caveats, both baked in here:
+  * GAIA is a *gated* HF dataset — set HF_TOKEN in .env and accept the terms
+    once at https://huggingface.co/datasets/gaia-benchmark/GAIA .
+  * Many GAIA questions attach a file (xlsx/pdf/image) the agent must open.
+    Jarvis can't ingest those, so `_cases()` keeps only level-1 questions
+    with `file_name == ""`. Expect a low score — it partly measures "Jarvis
+    is not a full browsing/file agent", which is itself useful signal.
 """
 import re
 
 from jarvis_eval.benchmarks import hf
 from jarvis_eval.clients import chat
 from jarvis_eval.config import settings
+from jarvis_eval.metrics import extract_final_answer
 
 DS, SPLIT = "gaia-benchmark/GAIA", "validation"
 _INSTRUCTION = (
@@ -24,39 +28,41 @@ _INSTRUCTION = (
 )
 
 
+# --- GAIA's official scoring normalisation ------------------------------
 def _norm_str(s: str) -> str:
     s = s.strip().lower()
-    s = re.sub(r"[^\w\s.%-]", "", s)
-    s = re.sub(r"\b(a|an|the)\b", " ", s)
+    s = re.sub(r"[^\w\s.%-]", "", s)          # drop punctuation (keep . % -)
+    s = re.sub(r"\b(a|an|the)\b", " ", s)     # drop articles
     return " ".join(s.split())
 
 
 def _norm_num(s: str) -> str:
     s = s.replace(",", "").replace("$", "").replace("%", "").strip()
     try:
-        return str(float(s))
+        return str(float(s))                 # "1,000" and "1000.0" compare equal
     except ValueError:
         return s
 
 
 def gaia_score(pred: str, gold: str) -> float:
+    """1.0 if `pred` matches `gold` under GAIA's rules, else 0.0."""
     pred = (pred or "").strip()
-    if "," in gold:  # list
+    if "," in gold:                                   # comma-separated list
         p = [x.strip() for x in pred.split(",")]
         g = [x.strip() for x in gold.split(",")]
         if len(p) != len(g):
             return 0.0
         return 1.0 if all(_norm_str(a) == _norm_str(b) or _norm_num(a) == _norm_num(b)
                           for a, b in zip(p, g)) else 0.0
-    if re.fullmatch(r"[-+]?[\d,.]+%?\$?", gold.strip()):
+    if re.fullmatch(r"[-+]?[\d,.]+%?\$?", gold.strip()):   # numeric
         return 1.0 if _norm_num(pred) == _norm_num(gold) else 0.0
-    return 1.0 if _norm_str(pred) == _norm_str(gold) else 0.0
+    return 1.0 if _norm_str(pred) == _norm_str(gold) else 0.0   # string
 
 
 def _rows() -> list[dict]:
     if not settings.HF_TOKEN:
         raise RuntimeError("GAIA is gated — set HF_TOKEN and accept the terms on HF.")
-    for cfg in ("2023_level1", "2023_all"):
+    for cfg in ("2023_level1", "2023_all"):           # config name varies by dataset version
         try:
             return hf.load_rows(DS, cfg, SPLIT)
         except Exception:  # noqa: BLE001
@@ -65,17 +71,19 @@ def _rows() -> list[dict]:
 
 
 def _cases() -> list[dict]:
+    """Level-1 questions with no file attachment."""
     out = []
     for r in _rows():
         if str(r.get("Level")) != "1":
             continue
         if (r.get("file_name") or "").strip():
-            continue  # needs an attachment Jarvis can't open
+            continue
         out.append({"id": r["task_id"], "question": r["Question"], "gold": r["Final answer"]})
     return out
 
 
 def seed(_suite: str = "gaia") -> dict:
+    """Nothing to seed — GAIA answers from the open web."""
     return {"note": "GAIA needs no corpus (open web); nothing to seed.",
             "cases": len(_cases())}
 
@@ -84,8 +92,7 @@ def run(_cases, repeats: int = 1, suite: str = "gaia") -> list[dict]:
     results = []
     for case in _cases()[: settings.BENCH_AGENT_SAMPLE]:
         tr = chat.run_agent(f"{case['question']}\n\n({_INSTRUCTION})", case["id"],
-                            web_search=True)
-        from jarvis_eval.metrics import extract_final_answer
+                            web_search=True)             # GAIA needs the web
         pred = extract_final_answer(tr.final_text)
         results.append({
             "suite": "gaia", "case_id": case["id"], "repeat": 0,

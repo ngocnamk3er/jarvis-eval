@@ -1,4 +1,17 @@
-"""Aggregate raw case results -> results.json + report.md, and diff vs baseline."""
+"""Turn a pile of per-case results into numbers and prose.
+
+A benchmark run produces `rows` — one dict per (suite, case):
+    {"suite": "beir_scifact", "case_id": "5", "repeat": 0,
+     "metrics": {"ndcg@10": 1.0, ...}, "meta": {"error": None, ...}}
+
+This module:
+  * aggregate(rows)      -> mean each metric per suite  -> results.json shape
+  * write_run(rows)      -> results/<ts>/{raw,results}.json + report.md
+  * render_md(agg, base) -> the markdown table, with "vs baseline" deltas
+  * regressions(...)     -> list of gated metrics that dropped too far (CI gate)
+  * promote_baseline()   -> freeze a run into datasets/baseline.json
+  * render_baseline_md() -> the standalone RESULTS.md scoreboard
+"""
 from __future__ import annotations
 
 import json
@@ -8,13 +21,14 @@ from pathlib import Path
 
 from jarvis_eval.config import BASELINE_FILE, REPO_ROOT, RESULTS_DIR, settings
 from jarvis_eval.metrics import mean, pct
+from jarvis_eval.benchmarks import BENCH_METRICS   # {suite: (metric_list, reference_string)}
 
-from jarvis_eval.benchmarks import BENCH_METRICS
-
+# which metrics to surface per suite, and the published number to show beside them
 _SUITE_METRICS = {s: metrics for s, (metrics, _ref) in BENCH_METRICS.items()}
 _BENCH_REF = {s: ref for s, (_, ref) in BENCH_METRICS.items()}
 
-# metric -> (higher_is_better, regression threshold). Only these gate CI.
+# The only metrics that fail CI. metric -> (higher_is_better, allowed drop).
+# A run scoring more than `thr` below baseline on one of these => exit 1.
 GATES = {
     "beir_scifact::ndcg@10": (True, 0.03),
     "beir_nfcorpus::ndcg@10": (True, 0.03),
@@ -24,6 +38,7 @@ GATES = {
 
 
 def _git_sha() -> str:
+    """Short HEAD of the jarvis-eval repo, stamped into each run for traceability."""
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                               capture_output=True, text=True, cwd=REPO_ROOT).stdout.strip() or "?"
@@ -32,7 +47,8 @@ def _git_sha() -> str:
 
 
 def _per_case(rows: list[dict]) -> dict[tuple[str, str], dict]:
-    """Average each metric across a case's repeats."""
+    """Collapse a case's repeats (usually 1) into one metric dict by averaging.
+    Keyed by (suite, case_id). `_repeats` / `_errors` are bookkeeping."""
     by_case: dict[tuple[str, str], list[dict]] = {}
     for r in rows:
         by_case.setdefault((r["suite"], r["case_id"]), []).append(r)
@@ -46,13 +62,16 @@ def _per_case(rows: list[dict]) -> dict[tuple[str, str], dict]:
 
 
 def aggregate(rows: list[dict]) -> dict:
+    """rows (per-case) -> {meta, suites: {suite: {metric: mean}}, cases: {...}}."""
     per_case = _per_case(rows)
     suites: dict[str, dict] = {}
     for suite, metric_names in _SUITE_METRICS.items():
         cases = {cid: m for (s, cid), m in per_case.items() if s == suite}
         if not cases:
             continue
+        # average each headline metric across the suite's cases
         agg = {name: mean([m.get(name) for m in cases.values()]) for name in metric_names}
+        # add latency p95 + total $ only if the suite actually ran the agent
         lat = [m.get("latency_s") for m in cases.values() if m.get("latency_s") is not None]
         if lat:
             agg["latency_p95"] = pct(lat, 95)
@@ -72,13 +91,13 @@ def aggregate(rows: list[dict]) -> dict:
 
 
 def write_run(rows: list[dict]) -> Path:
+    """Persist one run to results/<UTC timestamp>/ and return the dir."""
     agg = aggregate(rows)
-    ts = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
-    d = RESULTS_DIR / ts
+    d = RESULTS_DIR / time.strftime("%Y%m%d-%H%M%S", time.gmtime())
     d.mkdir(parents=True, exist_ok=True)
-    (d / "raw.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False))
-    (d / "results.json").write_text(json.dumps(agg, indent=2, ensure_ascii=False))
-    (d / "report.md").write_text(render_md(agg, _load_baseline()))
+    (d / "raw.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False))       # every case, verbatim
+    (d / "results.json").write_text(json.dumps(agg, indent=2, ensure_ascii=False))    # the aggregate
+    (d / "report.md").write_text(render_md(agg, _load_baseline()))                    # human view
     return d
 
 
@@ -95,23 +114,24 @@ def latest_run() -> Path | None:
 
 
 def _fmt(v) -> str:
-    if isinstance(v, float):
-        return f"{v:.3f}"
-    return str(v)
+    return f"{v:.3f}" if isinstance(v, float) else str(v)
 
 
 def _delta(cur, base, higher_better=True) -> str:
+    """A '▲0.021 ✅' / '▼0.008 ⚠️' cell for the 'vs baseline' column."""
     if base is None or cur is None or not isinstance(cur, (int, float)) or not isinstance(base, (int, float)):
         return ""
     d = cur - base
-    if abs(d) < 5e-4:  # below display precision
+    if abs(d) < 5e-4:                    # below the 3-decimal display precision
         return "±0"
     arrow = "▲" if d > 0 else "▼"
-    good = (d > 0) == higher_better
+    good = (d > 0) == higher_better      # up is good for scores, bad for latency/$
     return f"{arrow}{abs(d):.3f} {'✅' if good else '⚠️'}"
 
 
 def render_md(agg: dict, baseline: dict | None) -> str:
+    """The per-run report: one table per suite (+ deltas vs baseline), then a
+    collapsible per-case dump."""
     m = agg["meta"]
     base_suites = (baseline or {}).get("suites", {})
     lines = [
@@ -137,7 +157,6 @@ def render_md(agg: dict, baseline: dict | None) -> str:
             lines.append(f"| {name} | {_fmt(agg_metrics[name])} | {_delta(agg_metrics[name], b.get(name), hib)} |")
         lines.append("")
 
-    # per-case detail
     lines += ["<details><summary>per-case</summary>", ""]
     for key, cm in agg["cases"].items():
         show = {k: round(v, 3) for k, v in cm.items() if not k.startswith("_") and isinstance(v, (int, float))}
@@ -148,6 +167,8 @@ def render_md(agg: dict, baseline: dict | None) -> str:
 
 
 def regressions(agg: dict, baseline: dict | None) -> list[str]:
+    """Gated metrics that fell more than their threshold below baseline.
+    Empty list => the CI gate passes. No baseline => nothing to check."""
     if not baseline:
         return []
     out = []
@@ -164,8 +185,8 @@ def regressions(agg: dict, baseline: dict | None) -> list[str]:
 
 
 def render_baseline_md() -> str:
-    """A standalone, committable scoreboard rendered straight from
-    datasets/baseline.json — always shows every suite, no run needed."""
+    """RESULTS.md — a plain scoreboard straight from datasets/baseline.json.
+    Always shows every suite; needs no run. Regenerated by `jeval baseline`."""
     b = _load_baseline() or {"meta": {}, "suites": {}}
     m = b.get("meta", {})
     lines = [
@@ -194,11 +215,12 @@ def render_baseline_md() -> str:
 
 
 def promote_baseline(run_dir: Path) -> None:
-    """Merge this run's suites into the baseline (so promoting a
-    benchmark-only run doesn't drop the hand-rolled suites, or vice-versa)."""
+    """Copy a run's aggregate scores into datasets/baseline.json, merging by
+    suite (so promoting a beir-only run keeps the hotpotqa numbers, etc.).
+    Per-case detail is dropped — the baseline is aggregates only."""
     new = json.loads((run_dir / "results.json").read_text())
     existing = _load_baseline() or {"meta": {}, "suites": {}}
     existing["meta"] = new["meta"]
-    existing.pop("cases", None)  # aggregates only — per-case data stays in results/
+    existing.pop("cases", None)
     existing.setdefault("suites", {}).update(new.get("suites", {}))
     BASELINE_FILE.write_text(json.dumps(existing, indent=2, ensure_ascii=False))

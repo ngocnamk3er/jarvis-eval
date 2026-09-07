@@ -1,14 +1,27 @@
-"""Standard third-party benchmarks, loaded from HuggingFace at seed time.
+"""The benchmark registry.
 
-Each entry: seed(suite) builds the corpus in a dedicated `eval-<suite>`
-workspace; run(cases, repeats, suite) scores it. `cases` is unused (the
-dataset comes from HF), kept for a uniform runner signature.
+Each benchmark module exposes two functions with a uniform signature:
+
+    seed(suite) -> dict          download the dataset from HF, upload its
+                                 corpus into the `eval-<suite>` workspace,
+                                 wait for embedding. One-off.
+    run(_cases, repeats, suite)  score it against the seeded workspace,
+                 -> list[dict]   returning one {suite, case_id, metrics, meta}
+                                 per query.  (`_cases` is unused — the data
+                                 comes from HF, not a local file — it's just
+                                 there so cli.py can call every runner the
+                                 same way.)
+
+`BENCHMARKS` maps a name to (seed_fn, run_fn); `cli.py` dispatches on it.
+`BENCH_METRICS` tells `report.py` which metrics to put in the table and what
+published number to show beside them.
 """
 from functools import partial
 
 from jarvis_eval.benchmarks import beir, gaia, hotpotqa
 
-# suite -> (seed_fn, run_fn)
+# name -> (seed_fn, run_fn).  beir handles two suites, so its functions are
+# partial-applied with the suite name.
 BENCHMARKS = {
     "beir_scifact": (partial(beir.seed, "beir_scifact"), partial(beir.run, suite="beir_scifact")),
     "beir_nfcorpus": (partial(beir.seed, "beir_nfcorpus"), partial(beir.run, suite="beir_nfcorpus")),
@@ -16,8 +29,7 @@ BENCHMARKS = {
     "gaia": (gaia.seed, gaia.run),
 }
 
-# for report.py aggregation — which metrics to surface per suite, and the
-# published reference point (bge-m3 dense / strong-agent numbers)
+# suite -> (metrics to show in the report, "reference: <published number>")
 BENCH_METRICS = {
     "beir_scifact": (["ndcg@10", "recall@10", "recall@100", "mrr@10"],
                      "bge-m3 dense ≈ ndcg@10 0.64"),
