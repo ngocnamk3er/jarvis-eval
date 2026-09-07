@@ -45,7 +45,11 @@ def _cmd_seed(args) -> int:
 
 
 def _cmd_run(args) -> int:
-    which = BENCH if args.suite == "all" else [args.suite]
+    which = BENCH if args.suite == "all" else args.suite.split(",")
+    bad = [s for s in which if s not in BENCH]
+    if bad:
+        console.print(f"[red]unknown suite(s): {bad}[/]  (choices: {', '.join(BENCH)}, all)")
+        return 2
     if args.model:
         settings.RUNNER_MODEL = args.model
 
@@ -116,7 +120,8 @@ def main() -> None:
     s.set_defaults(fn=_cmd_seed)
 
     r = sub.add_parser("run")
-    r.add_argument("--suite", choices=[*BENCH, "all"], required=True)
+    r.add_argument("--suite", required=True,
+                   help=f"one, several comma-separated, or 'all' of: {', '.join(BENCH)}")
     r.add_argument("--model", default=None, help="override RUNNER_MODEL")
     r.set_defaults(fn=_cmd_run)
 
