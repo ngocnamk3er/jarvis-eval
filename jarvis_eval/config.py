@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     EMBEDDING_BASE_URL: str = "https://openrouter.ai/api/v1"
     EMBEDDING_API_KEY: str = ""   # jarvis-secrets EMBEDDING_API_KEY (an OpenRouter key)
 
+    # --- `jeval rerankcompare --backend openrouter` only: an OpenAI-compatible
+    # /chat/completions endpoint for listwise (RankGPT-style) LLM reranking ---
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_API_KEY: str = ""   # a chat-capable OpenRouter key
+
     # --- agent run behaviour ---
     MAX_HITL_ROUNDS: int = 8       # auto-approve this many bash prompts before giving up
     RUN_TIMEOUT: float = 420.0     # wall-clock ceiling for one agent run (seconds)

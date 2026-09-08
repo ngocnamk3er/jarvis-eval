@@ -1,0 +1,10 @@
+# Extra deps for `jeval rerankcompare` only — a local CPU cross-encoder.
+# Not needed for setup / seed / run / report / baseline / embcompare.
+#
+#   pip install -r requirements.txt -r requirements-rerank.txt \
+#       --extra-index-url https://download.pytorch.org/whl/cpu
+#
+# The CPU torch wheel is ~200 MB; the default reranker
+# (cross-encoder/ms-marco-MiniLM-L-6-v2) is ~90 MB and downloads on first use.
+torch>=2.4          # CPU build is fine — rerankcompare never needs a GPU
+transformers>=4.44

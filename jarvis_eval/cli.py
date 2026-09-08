@@ -9,6 +9,9 @@
     jeval embcompare <model> [--dims N] [--suite ...]
                                      score a candidate embedding model on BEIR
                                      offline (no cluster), vs the baseline
+    jeval rerankcompare <reranker> [--suite ...] [--fetch N]
+                                     dense-vs-reranked retrieval on beir_* /
+                                     hotpotqa, offline (needs requirements-rerank.txt)
 
 benchmarks: beir_scifact · beir_nfcorpus · hotpotqa · gaia
 
@@ -133,6 +136,25 @@ def _cmd_embcompare(args) -> int:
     return 0
 
 
+def _cmd_rerankcompare(args) -> int:
+    """`jeval rerankcompare <reranker>` — offline dense-vs-reranked retrieval
+    on beir_* / hotpotqa, next to the committed baseline."""
+    from jarvis_eval import rerankcompare
+    suites = args.suite.split(",") if args.suite else ["beir_scifact", "beir_nfcorpus", "hotpotqa"]
+    rerankcompare.run(args.reranker, suites, args.fetch, args.backend, args.max_cost)
+    return 0
+
+
+def _cmd_hotpotsup(args) -> int:
+    """`jeval hotpotsup <model>` — sentence-level Sup EM/F1 for HotpotQA
+    (leaderboard metric) via an LLM supporting-fact selector."""
+    from jarvis_eval import hotpotsup
+    ctxs = (["distractor", "dense", "rerank"] if args.context == "all"
+            else args.context.split(","))
+    hotpotsup.run(args.model, ctxs, args.topk, args.rerank_model, args.max_cost)
+    return 0
+
+
 def _resolve_run(arg):
     """A run dir given on the CLI, or the newest one under results/."""
     if arg:
@@ -176,6 +198,29 @@ def main() -> None:
     e.add_argument("--dims", type=int, default=None, help="request this many dimensions")
     e.add_argument("--suite", default=None, help="comma list of BEIR suites (default: both)")
     e.set_defaults(fn=_cmd_embcompare)
+
+    rr = sub.add_parser("rerankcompare")
+    rr.add_argument("reranker", help="openrouter: a chat model id (e.g. google/gemini-2.5-flash); "
+                                     "local: an HF cross-encoder (e.g. cross-encoder/ms-marco-MiniLM-L-6-v2)")
+    rr.add_argument("--backend", choices=["openrouter", "local"], default="openrouter",
+                    help="openrouter = listwise LLM rerank (default); local = CPU cross-encoder")
+    rr.add_argument("--suite", default=None,
+                    help="comma list of beir_scifact/beir_nfcorpus/hotpotqa (default: all three)")
+    rr.add_argument("--fetch", type=int, default=None,
+                    help="dense candidates reranked per query (default: 20 openrouter / 100 local)")
+    rr.add_argument("--max-cost", type=float, default=3.0, dest="max_cost",
+                    help="openrouter: stop reranking once spend passes this (USD)")
+    rr.set_defaults(fn=_cmd_rerankcompare)
+
+    hs = sub.add_parser("hotpotsup")
+    hs.add_argument("model", help="chat model that selects supporting sentences, e.g. google/gemini-2.5-flash")
+    hs.add_argument("--context", default="all",
+                    help="distractor | dense | rerank | all  (comma list ok; default all)")
+    hs.add_argument("--topk", type=int, default=5, help="paragraphs shown for dense/rerank contexts")
+    hs.add_argument("--rerank-model", default="google/gemini-2.5-flash", dest="rerank_model",
+                    help="listwise reranker model for --context rerank")
+    hs.add_argument("--max-cost", type=float, default=2.0, dest="max_cost", help="USD budget cap")
+    hs.set_defaults(fn=_cmd_hotpotsup)
 
     args = p.parse_args()
     sys.exit(args.fn(args))     # args.fn is the _cmd_* picked by the subcommand
