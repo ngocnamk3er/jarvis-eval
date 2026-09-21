@@ -17,6 +17,17 @@ dependencies = [
     "numpy>=2.1.0",
 ]
 
+[project.optional-dependencies]
+# Groundedness metrics. Optional because a retrieval-only run doesn't need
+# them, and this pulls in ~50 packages. langchain-community is pinned: at
+# 0.4.x it dropped a module ragas still imports at module scope, so latest +
+# latest fails on `import ragas`.
+groundedness = [
+    "ragas==0.4.3",
+    "langchain-community<0.4",
+    "openai>=1.30.0",
+]
+
 [project.scripts]
 jeval = "jarvis_eval.cli:main"
 

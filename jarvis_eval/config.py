@@ -52,10 +52,19 @@ class Settings(BaseSettings):
     # --- `jeval embcompare` only: an OpenAI-compatible /embeddings endpoint,
     # to score a candidate embedding model offline before deploying it ---
     EMBEDDING_BASE_URL: str = "https://openrouter.ai/api/v1"
+    # Only used by the groundedness metrics — answer_relevancy compares the
+    # answer to questions it generates, in vector space. Should match what
+    # jarvis-file-service indexed with, so the comparison happens in the same
+    # space as the retrieval being scored.
+    EMBEDDING_MODEL: str = "openai/text-embedding-3-large"
     EMBEDDING_API_KEY: str = ""   # jarvis-secrets EMBEDDING_API_KEY (an OpenRouter key)
 
     # --- `jeval rerankcompare --backend openrouter` only: an OpenAI-compatible
     # /chat/completions endpoint for listwise (RankGPT-style) LLM reranking ---
+    # LLM-as-judge for the groundedness metrics. Separate from RUNNER_MODEL
+    # so judging the agent doesn't change when the agent's own model does —
+    # a moving judge makes scores incomparable across runs.
+    GROUNDEDNESS_MODEL: str = "deepseek/deepseek-v4-flash"
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_API_KEY: str = ""   # a chat-capable OpenRouter key
 
