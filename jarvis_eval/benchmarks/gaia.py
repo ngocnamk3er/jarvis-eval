@@ -9,7 +9,7 @@ Two caveats, both baked in here:
   * GAIA is a *gated* HF dataset — set HF_TOKEN in .env and accept the terms
     once at https://huggingface.co/datasets/gaia-benchmark/GAIA .
   * Many GAIA questions attach a file (xlsx/pdf/image) the agent must open.
-    Jarvis can't ingest those, so `_cases()` keeps only level-1 questions
+    Jarvis can't ingest those, so `_sample()` keeps only level-1 questions
     with `file_name == ""`. Expect a low score — it partly measures "Jarvis
     is not a full browsing/file agent", which is itself useful signal.
 """
@@ -70,8 +70,14 @@ def _rows() -> list[dict]:
     raise RuntimeError("could not load GAIA (config/split mismatch or no access)")
 
 
-def _cases() -> list[dict]:
-    """Level-1 questions with no file attachment."""
+def _sample() -> list[dict]:
+    """Level-1 questions with no file attachment.
+
+    Named _sample() to match hotpotqa's: run() below takes an unused `_cases`
+    placeholder as part of the shared calling convention (the CLI invokes
+    every benchmark as run(None, repeats=1)), so a module function of that
+    same name is shadowed by the parameter and calls None().
+    """
     out = []
     for r in _rows():
         if str(r.get("Level")) != "1":
@@ -85,12 +91,12 @@ def _cases() -> list[dict]:
 def seed(_suite: str = "gaia") -> dict:
     """Nothing to seed — GAIA answers from the open web."""
     return {"note": "GAIA needs no corpus (open web); nothing to seed.",
-            "cases": len(_cases())}
+            "cases": len(_sample())}
 
 
 def run(_cases, repeats: int = 1, suite: str = "gaia") -> list[dict]:
     results = []
-    for case in _cases()[: settings.BENCH_AGENT_SAMPLE]:
+    for case in _sample()[: settings.BENCH_AGENT_SAMPLE]:
         tr = chat.run_agent(f"{case['question']}\n\n({_INSTRUCTION})", case["id"],
                             web_search=True)             # GAIA needs the web
         pred = extract_final_answer(tr.final_text)
