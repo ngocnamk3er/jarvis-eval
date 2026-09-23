@@ -90,6 +90,24 @@ def _cmd_run(args) -> int:
     return 0
 
 
+def _cmd_experiment(args) -> int:
+    """`jeval experiment gaia` — run a suite against the live agent and record
+    it as a Langfuse experiment run, so it can be compared with earlier runs
+    instead of a local JSON dump."""
+    from jarvis_eval import langfuse_sync
+    if not langfuse_sync.available():
+        console.print("[red]Langfuse not configured[/] — set LANGFUSE_HOST, "
+                      "LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in .env")
+        return 1
+    if args.benchmark != "gaia":
+        console.print(f"[red]{args.benchmark}[/]: only gaia is wired up so far")
+        return 1
+    result, _ = langfuse_sync.run_gaia_experiment(run_name=args.run_name,
+                                                  max_items=args.limit)
+    console.print(result.format())
+    return 0
+
+
 def _cmd_report(args) -> int:
     """`jeval report [dir]` — re-print a run's report; with --baseline show
     deltas; with --fail-on-regression exit 1 if a gated metric dropped too far."""
@@ -181,6 +199,13 @@ def main() -> None:
                    help=f"one, several comma-separated, or 'all' of: {', '.join(BENCH)}")
     r.add_argument("--model", default=None, help="override RUNNER_MODEL")
     r.set_defaults(fn=_cmd_run)
+
+    x = sub.add_parser("experiment",
+                       help="run a suite live and record it as a Langfuse experiment")
+    x.add_argument("benchmark", choices=BENCH)
+    x.add_argument("--run-name", default=None, help="name this run (default: agent-<timestamp>)")
+    x.add_argument("--limit", type=int, default=None, help="only the first N cases")
+    x.set_defaults(fn=_cmd_experiment)
 
     rp = sub.add_parser("report")
     rp.add_argument("run_dir", nargs="?", default=None)
