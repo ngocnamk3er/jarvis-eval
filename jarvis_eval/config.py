@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     # --- benchmarks ---
     # HF token — only GAIA needs it (gated dataset). https://huggingface.co/settings/tokens
     HF_TOKEN: str = ""
+
+    # Langfuse — the self-hosted trace/experiment store (jarvis-deploy/langfuse/).
+    # Empty host turns the integration off, so `jeval run` still works on a
+    # machine with no Langfuse. See jarvis_eval/langfuse_sync.py.
+    LANGFUSE_HOST: str = ""
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_ENVIRONMENT: str = "test"
     # Cap on docs loaded into a benchmark workspace (bounds embedding + Qdrant cost).
     BENCH_MAX_DOCS: int = 8000
     # HotpotQA: how many questions to sample. Their 10-paragraph pools, deduped,
