@@ -75,6 +75,22 @@ def seed_gaia_dataset(lf, name: str = "gaia") -> None:
     return len(cases)
 
 
+def _question_of(item) -> str:
+    """The question text, whichever shape the dataset item is in.
+
+    Items seeded by seed_gaia_dataset() store {"question": ...}; items
+    uploaded as CSV through the UI store the bare string, because the upload
+    maps one column to Input and does not wrap it. Both are legitimate, and a
+    runner that only understands its own shape breaks the moment someone
+    curates the dataset by hand — which is the whole point of having it in
+    Langfuse rather than in code.
+    """
+    inp = item.input
+    if isinstance(inp, dict):
+        return str(inp.get("question") or inp.get("input") or "")
+    return str(inp or "")
+
+
 def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
                         max_items: int | None = None):
     """Run GAIA through the real agent, recorded as one Langfuse experiment.
@@ -89,8 +105,11 @@ def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
     from jarvis_eval.clients import chat
     from jarvis_eval.metrics import extract_final_answer
 
+    # Deliberately does not seed: seeding writes items keyed by GAIA task_id,
+    # while items uploaded through the UI get their own ids, so re-seeding on
+    # every run would add a second copy of every question rather than update
+    # one. Seed explicitly with `jeval seed-dataset` when the questions change.
     lf = _client()
-    seed_gaia_dataset(lf, dataset)
     ds = lf.get_dataset(dataset)
     items = ds.items[:max_items] if max_items else ds.items
 
@@ -100,7 +119,7 @@ def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
     traces: dict[str, object] = {}
 
     def task(*, item, **_):
-        question = (item.input or {}).get("question", "")
+        question = _question_of(item)
         tr = chat.run_agent(f"{question}\n\n({_INSTRUCTION})", item.id, web_search=True)
         traces[item.id] = tr
         return extract_final_answer(tr.final_text)

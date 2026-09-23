@@ -90,6 +90,26 @@ def _cmd_run(args) -> int:
     return 0
 
 
+def _cmd_seed_dataset(args) -> int:
+    """`jeval seed-dataset gaia` — push the benchmark's questions into Langfuse.
+
+    Separate from `experiment` on purpose: seeding writes items keyed by the
+    benchmark's own case id, so running it implicitly on every experiment
+    would add a second copy of every question that was curated in the UI
+    under a different id.
+    """
+    from jarvis_eval import langfuse_sync
+    if not langfuse_sync.available():
+        console.print("[red]Langfuse not configured[/] — set LANGFUSE_HOST and the keys in .env")
+        return 1
+    if args.benchmark != "gaia":
+        console.print(f"[red]{args.benchmark}[/]: only gaia is wired up so far")
+        return 1
+    n = langfuse_sync.seed_gaia_dataset(langfuse_sync._client())
+    console.print(f"seeded [green]{n}[/] items into dataset [bold]gaia[/]")
+    return 0
+
+
 def _cmd_experiment(args) -> int:
     """`jeval experiment gaia` — run a suite against the live agent and record
     it as a Langfuse experiment run, so it can be compared with earlier runs
@@ -199,6 +219,11 @@ def main() -> None:
                    help=f"one, several comma-separated, or 'all' of: {', '.join(BENCH)}")
     r.add_argument("--model", default=None, help="override RUNNER_MODEL")
     r.set_defaults(fn=_cmd_run)
+
+    sd = sub.add_parser("seed-dataset",
+                        help="push a benchmark's questions into a Langfuse dataset")
+    sd.add_argument("benchmark", choices=BENCH)
+    sd.set_defaults(fn=_cmd_seed_dataset)
 
     x = sub.add_parser("experiment",
                        help="run a suite live and record it as a Langfuse experiment")
