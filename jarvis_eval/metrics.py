@@ -96,15 +96,29 @@ def answer_f1(pred: str, gold: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-def extract_final_answer(text: str) -> str:
+def extract_final_answer(text: str, *, strict: bool = False) -> str:
     """Pull the bare answer out of the agent's prose. Prefers an explicit
-    'FINAL ANSWER: x' / 'Answer: x' line (we ask for one in the prompt);
-    falls back to the last non-empty line."""
+    'FINAL ANSWER: x' / 'Answer: x' line, which the prompt asks for.
+
+    `strict` controls what happens when that line is absent. The default
+    falls back to the last non-empty line, which is worth keeping where the
+    metric gives partial credit — a stray sentence containing the answer
+    still earns some F1.
+
+    Under exact match it earns nothing, and it actively lies: an agent that
+    ran out of budget mid-thought gets its last thought scored as if it were
+    an answer, so "never finished" is indistinguishable from "answered
+    wrongly". Measured over the 2026-09-23 GAIA run the fallback fired 29
+    times and was right 0 of them, while hiding 6 cases that had produced no
+    answer at all. strict=True returns "" instead, making that visible.
+    """
     if not text:
         return ""
     m = re.search(r"(?:final answer|answer)\s*[:\-]\s*(.+)", text, re.I)
     if m:
         return m.group(1).strip().strip("*`.")
+    if strict:
+        return ""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     return lines[-1].strip("*`.") if lines else text.strip()
 

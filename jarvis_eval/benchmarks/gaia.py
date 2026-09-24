@@ -99,7 +99,7 @@ def run(_cases, repeats: int = 1, suite: str = "gaia") -> list[dict]:
     for case in _sample()[: settings.BENCH_AGENT_SAMPLE]:
         tr = chat.run_agent(f"{case['question']}\n\n({_INSTRUCTION})", case["id"],
                             web_search=True)             # GAIA needs the web
-        pred = extract_final_answer(tr.final_text)
+        pred = extract_final_answer(tr.final_text, strict=True)
         results.append({
             "suite": "gaia", "case_id": case["id"], "repeat": 0,
             "metrics": {"score": gaia_score(pred, case["gold"]),

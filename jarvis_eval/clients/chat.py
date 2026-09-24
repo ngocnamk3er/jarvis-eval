@@ -107,6 +107,12 @@ def run_agent(prompt: str, case_id: str, *, web_search: bool = True,
         body = {
             "thread_id": tid, "content": prompt, "model": model,
             "thinking_effort": settings.RUNNER_THINKING_EFFORT, "web_search": web_search,
+            # Approve bash inside the graph instead of over HTTP. The resume
+            # loop below still works and stays as a fallback for an older
+            # backend, but with this set it should never run: every approval
+            # it handles costs a whole extra request, and the cap it stops at
+            # cost two of 42 GAIA cases their answer on 2026-09-23.
+            "auto_approve_bash": True,
         }
         with _client(user) as c:
             # first stream segment

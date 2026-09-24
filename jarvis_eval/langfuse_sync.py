@@ -75,8 +75,8 @@ def seed_gaia_dataset(lf, name: str = "gaia") -> None:
     return len(cases)
 
 
-def _question_of(item) -> str:
-    """The question text, whichever shape the dataset item is in.
+def _text_of(inp) -> str:
+    """The question text, whichever shape the dataset item's input is in.
 
     Items seeded by seed_gaia_dataset() store {"question": ...}; items
     uploaded as CSV through the UI store the bare string, because the upload
@@ -85,10 +85,14 @@ def _question_of(item) -> str:
     curates the dataset by hand — which is the whole point of having it in
     Langfuse rather than in code.
     """
-    inp = item.input
     if isinstance(inp, dict):
         return str(inp.get("question") or inp.get("input") or "")
     return str(inp or "")
+
+
+def _question_of(item) -> str:
+    """The question text of a dataset item."""
+    return _text_of(item.input)
 
 
 def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
@@ -114,18 +118,16 @@ def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
     items = ds.items[:max_items] if max_items else ds.items
 
     # chat.run_agent's RunTrace carries latency/cost/turns, but run_experiment
-    # only hands evaluators the task's return value — so stash the trace here,
-    # keyed by item id, for the metric scorers below to read back.
+    # hands evaluators only the task's return value — so stash the trace here
+    # for the metric scorers below. Keyed by the question, the one value both
+    # the task and the evaluators are given.
     traces: dict[str, object] = {}
 
     def task(*, item, **_):
         question = _question_of(item)
         tr = chat.run_agent(f"{question}\n\n({_INSTRUCTION})", item.id, web_search=True)
-        traces[item.id] = tr
-        return extract_final_answer(tr.final_text)
-
-    def _tr(item_id):
-        return traces.get(item_id)
+        traces[question] = tr
+        return extract_final_answer(tr.final_text, strict=True)
 
     def score_gaia(*, input, output, expected_output, metadata=None, **_):
         # str() on both sides: Langfuse round-trips gold through JSON, so a
@@ -134,10 +136,27 @@ def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
                           value=gaia_score(str(output or ""), str(expected_output or "")),
                           comment=f"pred={str(output)[:60]!r} gold={str(expected_output)[:60]!r}")
 
-    def _metric(name, pick):
-        def fn(*, input, output, metadata=None, **kw):
-            item_id = (metadata or {}).get("item_id")
-            tr = _tr(item_id) if item_id else None
+    def answered(*, input, output, expected_output=None, **_):
+        """Whether the agent committed to an answer at all.
+
+        Separate from gaia_score because the two failures need opposite
+        fixes: a wrong answer wants a better model or prompt, an absent one
+        wants more budget. Both score 0, so without this they are one number.
+        On 2026-09-23 six of 42 cases produced nothing — 14% of the suite lost
+        to running out of turns rather than to being unable to reason.
+        """
+        return Evaluation(name="answered", value=1.0 if str(output or "").strip() else 0.0)
+
+    def _from_trace(name: str, pick):
+        """Lift a field off the RunTrace the task stashed for this item.
+
+        Keyed by the question, because that is the only thing both sides see:
+        the task gets the dataset item, the evaluator gets `input`, and
+        Langfuse passes no item id between them. Questions are unique within
+        a dataset, so the lookup is exact.
+        """
+        def fn(*, input, output, **_):
+            tr = traces.get(_text_of(input))
             return Evaluation(name=name, value=float(pick(tr))) if tr else None
         fn.__name__ = name
         return fn
@@ -149,7 +168,14 @@ def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
                     f"thinking={settings.RUNNER_THINKING_EFFORT}, web_search=on.",
         data=items,
         task=task,
-        evaluators=[score_gaia],
+        evaluators=[
+            score_gaia,
+            answered,
+            _from_trace("latency_s", lambda t: t.wall_seconds),
+            _from_trace("usd", lambda t: t.usd),
+            _from_trace("turns", lambda t: len(t.tool_calls)),
+            _from_trace("hitl_rounds", lambda t: t.hitl_rounds),
+        ],
         metadata={"runner_model": settings.RUNNER_MODEL,
                   "thinking_effort": settings.RUNNER_THINKING_EFFORT},
         max_concurrency=1,   # the agent holds a sandbox per conversation
