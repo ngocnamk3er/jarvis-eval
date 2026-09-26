@@ -21,16 +21,33 @@ from jarvis_eval.config import settings
 from jarvis_eval.metrics import extract_final_answer
 
 DS, SPLIT = "gaia-benchmark/GAIA", "validation"
+# The last two sentences are not politeness. Scoring is exact match, so an
+# unsure guess and silence are both worth 0 — but silence is worth 0 every
+# time, while a guess is sometimes right. On 2026-09-23 five of 42 cases ran
+# out of budget mid-search and committed to nothing, throwing away whatever
+# they had already found. The instruction also has to spell out the units,
+# because one case computed 17000 hours correctly for a question that asked
+# how many *thousand* hours.
 _INSTRUCTION = (
-    "Finish with a line 'FINAL ANSWER: <answer>'. The answer is a number "
-    "OR as few words as possible OR a comma-separated list. No units unless "
-    "asked, no thousands separators, no articles."
+    "Finish with a line 'FINAL ANSWER: <answer>' — plain text, no bold or "
+    "other markdown on that line. The answer is a number OR as few words as "
+    "possible OR a comma-separated list. Re-read the question for the unit it "
+    "asks for and answer in that unit. No units unless asked, no thousands "
+    "separators, no articles. You must always end with this line, even when "
+    "you are unsure or ran out of time to check: give your best guess from "
+    "what you found. An empty or missing answer scores zero, so a guess is "
+    "never worse than silence."
 )
 
 
 # --- GAIA's official scoring normalisation ------------------------------
 def _norm_str(s: str) -> str:
     s = s.strip().lower()
+    # A full stop is kept below so decimals survive, but that also keeps the
+    # one ending a sentence, and GAIA's golds are written as sentences while
+    # agents answer without the stop. "…to my chair" vs "…to my chair." cost a
+    # correct answer on 2026-09-23. Drop stops that sit between non-digits.
+    s = re.sub(r"(?<!\d)\.(?!\d)", " ", s)
     s = re.sub(r"[^\w\s.%-]", "", s)          # drop punctuation (keep . % -)
     s = re.sub(r"\b(a|an|the)\b", " ", s)     # drop articles
     return " ".join(s.split())

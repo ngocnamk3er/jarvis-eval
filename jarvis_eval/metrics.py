@@ -114,9 +114,16 @@ def extract_final_answer(text: str, *, strict: bool = False) -> str:
     """
     if not text:
         return ""
-    m = re.search(r"(?:final answer|answer)\s*[:\-]\s*(.+)", text, re.I)
-    if m:
-        return m.group(1).strip().strip("*`.")
+    # `**` around the label: models format the line as **FINAL ANSWER**: x
+    # often enough that not allowing it silently loses correct answers to the
+    # fallback below, which then returns the whole bolded line.
+    #
+    # And the *last* match, not the first: agents reason out loud, so "the
+    # answer: maybe Paris?" appears mid-thought and the real line comes at the
+    # end. Taking the first match scores the guess the agent then discarded.
+    hits = re.findall(r"(?:\*\*)?(?:final answer|answer)(?:\*\*)?\s*[:\-]\s*(.+)", text, re.I)
+    if hits:
+        return hits[-1].strip().strip("*`.")
     if strict:
         return ""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]

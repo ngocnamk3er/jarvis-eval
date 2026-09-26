@@ -112,7 +112,7 @@ def run_agent(prompt: str, case_id: str, *, web_search: bool = True,
             # backend, but with this set it should never run: every approval
             # it handles costs a whole extra request, and the cap it stops at
             # cost two of 42 GAIA cases their answer on 2026-09-23.
-            "auto_approve_bash": True,
+            "unattended": True,
         }
         with _client(user) as c:
             # first stream segment
