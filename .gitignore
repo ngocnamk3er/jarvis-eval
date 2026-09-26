@@ -19,3 +19,10 @@ results/*
 
 # HF dataset cache lives in ~/.cache/jarvis-eval/ but allow an override here
 .hf-cache/
+
+# SpreadsheetBench ships 800 .xlsx files (26MB unpacked) rather than rows in a
+# parquet, so it cannot live in the shared HF cache the other suites use and
+# lands here instead. Downloaded by `jeval seed spreadsheetbench`; keeping it
+# out of git for the same reason the others are not committed — it is a fixed
+# artifact that re-downloads in seconds.
+datasets/spreadsheetbench/

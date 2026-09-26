@@ -53,9 +53,17 @@ def _cmd_setup(_args) -> int:
 def _cmd_seed(args) -> int:
     """`jeval seed <benchmark>` — download its dataset from HF, upload the
     corpus into that benchmark's workspace, wait for embedding. One-off."""
-    u = _bench_user(args.benchmark)
-    ensure_user(u)                                  # make sure the user exists first
-    console.rule(f"seed {args.benchmark}  (user {u})")
+    # Only suites that actually run the agent need a Keycloak user; one that
+    # just puts files on disk should not fail because the cluster is down.
+    # The registry already says which is which — a seed-only suite has no run
+    # function.
+    needs_user = BENCHMARKS[args.benchmark][1] is not None
+    if needs_user:
+        u = _bench_user(args.benchmark)
+        ensure_user(u)
+        console.rule(f"seed {args.benchmark}  (user {u})")
+    else:
+        console.rule(f"seed {args.benchmark}")
     console.print(BENCHMARKS[args.benchmark][0]())  # -> beir.seed(...) / hotpotqa.seed()
     return 0
 
@@ -122,8 +130,15 @@ def _cmd_experiment(args) -> int:
     if args.benchmark != "gaia":
         console.print(f"[red]{args.benchmark}[/]: only gaia is wired up so far")
         return 1
-    result, _ = langfuse_sync.run_gaia_experiment(run_name=args.run_name,
-                                                  max_items=args.limit)
+    if args.replay:
+        result = langfuse_sync.replay_experiment(dataset=args.dataset,
+                                                 run_name=args.run_name,
+                                                 max_items=args.limit)
+    else:
+        result, _ = langfuse_sync.run_gaia_experiment(run_name=args.run_name,
+                                                      dataset=args.dataset,
+                                                      max_items=args.limit,
+                                                      concurrency=args.concurrency)
     console.print(result.format())
     return 0
 
@@ -230,6 +245,12 @@ def main() -> None:
     x.add_argument("benchmark", choices=BENCH)
     x.add_argument("--run-name", default=None, help="name this run (default: agent-<timestamp>)")
     x.add_argument("--limit", type=int, default=None, help="only the first N cases")
+    x.add_argument("--dataset", default="gaia", help="Langfuse dataset to run against")
+    x.add_argument("--concurrency", type=int, default=1,
+                   help="cases to run at once; each holds its own sandbox")
+    x.add_argument("--replay", action="store_true",
+                   help="re-score answers stored on the dataset items instead of "
+                        "calling the agent; measures the scorer, not the agent")
     x.set_defaults(fn=_cmd_experiment)
 
     rp = sub.add_parser("report")

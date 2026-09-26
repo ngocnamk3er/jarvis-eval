@@ -18,7 +18,7 @@ published number to show beside them.
 """
 from functools import partial
 
-from jarvis_eval.benchmarks import beir, gaia, hotpotqa
+from jarvis_eval.benchmarks import beir, gaia, hotpotqa, spreadsheetbench
 
 # name -> (seed_fn, run_fn).  beir handles two suites, so its functions are
 # partial-applied with the suite name.
@@ -27,6 +27,9 @@ BENCHMARKS = {
     "beir_nfcorpus": (partial(beir.seed, "beir_nfcorpus"), partial(beir.run, suite="beir_nfcorpus")),
     "hotpotqa": (hotpotqa.seed, hotpotqa.run),
     "gaia": (gaia.seed, gaia.run),
+    # run_fn is None: this suite only seeds so far — scoring a workbook
+    # needs a runner that copies it into the sandbox, which does not exist yet.
+    "spreadsheetbench": (spreadsheetbench.seed, None),
 }
 
 # suite -> (metrics to show in the report, "reference: <published number>").
