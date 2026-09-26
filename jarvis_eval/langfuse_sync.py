@@ -96,7 +96,7 @@ def _question_of(item) -> str:
 
 
 def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
-                        max_items: int | None = None):
+                        max_items: int | None = None, concurrency: int = 1):
     """Run GAIA through the real agent, recorded as one Langfuse experiment.
 
     Unlike a replay, `task` below actually calls jarvis — so each dataset item
@@ -178,7 +178,66 @@ def run_gaia_experiment(run_name: str | None = None, dataset: str = "gaia",
         ],
         metadata={"runner_model": settings.RUNNER_MODEL,
                   "thinking_effort": settings.RUNNER_THINKING_EFFORT},
-        max_concurrency=1,   # the agent holds a sandbox per conversation
+        # Each case runs in its own conversation, and a conversation that
+        # calls bash holds its own sandbox pod — so concurrency here is
+        # really "how many sandboxes at once". The warm pool keeps one
+        # standing by; the rest are created cold, which costs seconds at the
+        # start of those cases but nothing after.
+        max_concurrency=concurrency,
     )
     lf.flush()
     return result, traces
+
+
+def replay_experiment(dataset: str, run_name: str | None = None,
+                      field: str = "trace_output", max_items: int | None = None):
+    """Re-score answers a previous run already produced, calling no model.
+
+    The point is to isolate a change to the *scorer* from a change to the
+    *agent*. Re-running the agent to test a scoring fix confounds the two:
+    the model is not deterministic, so the score moves for reasons that have
+    nothing to do with the fix. Replaying the recorded answers holds the
+    agent fixed and measures the scorer alone.
+
+    What it cannot do is detect a regression — the answers came from a build
+    that no longer exists, so a replay run says nothing about the current
+    agent, and naming one as if it did would mislead whoever reads the
+    comparison later.
+
+    Reads the stored answer from the dataset item's metadata (`trace_output`
+    by default), which is where a dataset built from traces keeps it.
+    """
+    from langfuse import Evaluation
+    from jarvis_eval.benchmarks.gaia import gaia_score
+
+    lf = _client()
+    ds = lf.get_dataset(dataset)
+    items = ds.items[:max_items] if max_items else ds.items
+
+    stored = {_text_of(i.input): str((i.metadata or {}).get(field) or "") for i in items}
+
+    def task(*, item, **_):
+        return str((item.metadata or {}).get(field) or "")
+
+    def score_gaia(*, input, output, expected_output, **_):
+        return Evaluation(name="gaia_score",
+                          value=gaia_score(str(output or ""), str(expected_output or "")),
+                          comment=f"pred={str(output)[:60]!r} gold={str(expected_output)[:60]!r}")
+
+    def answered(*, input, output, **_):
+        return Evaluation(name="answered", value=1.0 if str(output or "").strip() else 0.0)
+
+    result = lf.run_experiment(
+        name=dataset,
+        run_name=run_name or f"replay-{time.strftime('%Y%m%d-%H%M')}",
+        description=f"Replay of stored answers ({field}) against the dataset's "
+                    f"expected output. No model was called — this measures the "
+                    f"scorer, not the agent.",
+        data=items,
+        task=task,
+        evaluators=[score_gaia, answered],
+        metadata={"mode": "replay", "source_field": field},
+        max_concurrency=10,   # no agent involved, nothing to serialise on
+    )
+    lf.flush()
+    return result
