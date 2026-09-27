@@ -49,7 +49,7 @@ class RunTrace:
     final_text: str = ""           # the agent's last assistant message (the answer)
     tool_calls: list[ToolCall] = field(default_factory=list)
 
-    # File paths the agent actually surfaced via search_files / grep_files,
+    # File paths the agent actually surfaced via search_files,
     # in call order — parsed out of the tool output text in chat.py. This is
     # the agent's *effective* retrieval set (what it saw), used by hotpotqa
     # to check it found both supporting paragraphs.

@@ -27,8 +27,6 @@ from jarvis_eval.trace import RunTrace, ToolCall
 
 # search_files prints results as "/path/to/doc.txt (score=0.83): <snippet>"
 _SEARCH_FILES_LINE = re.compile(r"^(/\S+) \(score=", re.M)
-# grep_files prints "/path/to/doc.txt (12.3KB)"
-_GREP_LINE = re.compile(r"^(/\S+) \(", re.M)
 
 
 def _client(user: str | None = None) -> httpx.Client:
@@ -46,8 +44,6 @@ def _parse_retrieval(tool_name: str, output: str) -> list[str]:
     this is how we know what the agent actually retrieved."""
     if tool_name == "search_files":
         return _SEARCH_FILES_LINE.findall(output or "")
-    if tool_name == "grep_files":
-        return [m for m in _GREP_LINE.findall(output or "") if m.startswith("/")]
     return []
 
 
